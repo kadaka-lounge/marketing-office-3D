@@ -58,14 +58,14 @@ describe('backend configuration',()=>{
  });
  it('uses a local Ollama model without API keys and sends no hosted credentials',async()=>{
   vi.stubEnv('MARKETING_AI_KEY','fake-hosted-secret');
-  await save({baseUrl:'http://127.0.0.1:11434/v1',model:'Gwen3.8:27b'});
+  await save({baseUrl:'http://127.0.0.1:11434/v1',model:'qwen2.5:3b'});
   expect(getOffice().config).toMatchObject({aiConfigured:true,aiLocal:true,aiKeySource:'none',aiProvider:'Ollama (lokal)',imageConfigured:false});
   const mock=vi.fn().mockResolvedValue(new Response(JSON.stringify({choices:[{message:{content:'# Local result'}}]}),{status:200}));vi.stubGlobal('fetch',mock);
   await performAction({type:'runTask',taskId:readState().tasks[0].id,mode:'live'});
   expect(mock.mock.calls[0][0]).toBe('http://127.0.0.1:11434/v1/chat/completions');
-  expect(mock.mock.calls[0][1].headers).not.toHaveProperty('Authorization');expect(JSON.parse(mock.mock.calls[0][1].body).model).toBe('Gwen3.8:27b');
+  expect(mock.mock.calls[0][1].headers).not.toHaveProperty('Authorization');expect(JSON.parse(mock.mock.calls[0][1].body).model).toBe('qwen2.5:3b');
   expect(readState().artifacts[0]).toMatchObject({mode:'live',content:'# Local result'});
-  mock.mockResolvedValue(new Response(JSON.stringify({choices:[{message:{content:'',reasoning:'OK'}}]}),{status:200}));expect(await testBackendConnection()).toMatchObject({ok:true,model:'Gwen3.8:27b'});
+  mock.mockResolvedValue(new Response(JSON.stringify({choices:[{message:{content:'',reasoning:'OK'}}]}),{status:200}));expect(await testBackendConnection()).toMatchObject({ok:true,model:'qwen2.5:3b'});
  });
  it('accepts loopback HTTP only and reports an unavailable local server',async()=>{
   for(const baseUrl of ['http://localhost:11434/v1','http://[::1]:11434/v1'])await save({baseUrl,model:'local'});

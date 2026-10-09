@@ -227,7 +227,7 @@ test('Ollama settings use a local OpenAI-compatible server without an API key', 
     await page.goto('/');await page.getByTestId('tab-backend').click();
     await page.getByRole('combobox',{name:'Provider API'}).selectOption('Ollama (lokal)');
     await expect(page.getByTestId('backend-url')).toHaveValue('http://127.0.0.1:11434/v1');
-    await expect(page.getByTestId('backend-model')).toHaveValue('Gwen3.8:27b');
+    await expect(page.getByTestId('backend-model')).toHaveValue('qwen2.5:3b');
     await page.getByTestId('backend-url').fill(`http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`);
     await page.getByTestId('backend-save').click();
     await expect(page.getByTestId('backend-test')).toBeEnabled();
@@ -238,8 +238,8 @@ test('Ollama settings use a local OpenAI-compatible server without an API key', 
     expect(response.ok()).toBe(true);const result=await response.json() as OfficeResponse;
     expect(result.config).toMatchObject({aiConfigured:true,aiLocal:true,aiKeySource:'none',imageConfigured:false});
     expect(result.state.artifacts.find(a=>a.taskId===task.id)).toMatchObject({mode:'live',content:'# Hasil server lokal\nOllama-compatible transport verified.'});
-    expect(calls).toHaveLength(2);expect(calls.every(c=>c.path==='/v1/chat/completions'&&c.model==='Gwen3.8:27b'&&c.authorization===undefined)).toBe(true);
+    expect(calls).toHaveLength(2);expect(calls.every(c=>c.path==='/v1/chat/completions'&&c.model==='qwen2.5:3b'&&c.authorization===undefined)).toBe(true);
     await page.reload();await page.getByTestId('tab-backend').click();
-    await expect(page.getByTestId('backend-model')).toHaveValue('Gwen3.8:27b');
+    await expect(page.getByTestId('backend-model')).toHaveValue('qwen2.5:3b');
   }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });

@@ -31,7 +31,7 @@ Aplikasi dan Ollama dijalankan pada **laptop yang sama**. Pastikan Node.js 24+ d
 ollama list
 ```
 
-Jika layanan Ollama belum aktif, jalankan `ollama serve` di terminal lain. Aplikasi tidak mengunduh model baru. Gunakan nama persis yang muncul pada `ollama list`; nilai awal mengikuti permintaan Anda, `Gwen3.8:27b`, dan bisa diubah apabila nama yang terpasang berbeda.
+Jika layanan Ollama belum aktif, jalankan `ollama serve` di terminal lain. Aplikasi tidak mengunduh model baru. Gunakan nama persis yang muncul pada `ollama list`; nilai awal mengikuti permintaan Anda, `qwen2.5:3b`, dan bisa diubah apabila nama yang terpasang berbeda.
 
 ```sh
 git clone https://github.com/kadaka-lounge/marketing-office-3D.git
@@ -52,11 +52,11 @@ npm run start:local
 `dev:local` dan `start:local` bekerja melalui launcher Node di Windows, macOS, dan Linux. Untuk nama model atau endpoint berbeda, isi `.env.local`:
 
 ```dotenv
-LOCAL_LLM_MODEL=Gwen3.8:27b
+LOCAL_LLM_MODEL=qwen2.5:3b
 LOCAL_LLM_BASE_URL=http://127.0.0.1:11434/v1
 ```
 
-Launcher membaca `.env.local`, mempertahankan data kantor, dan tidak meneruskan kunci teks provider cloud ke Ollama. Endpoint HTTP diperbolehkan hanya untuk loopback (`localhost`, `127.0.0.1`, `[::1]`); provider di jaringan lain tetap membutuhkan HTTPS. Perangkat harus memiliki RAM/VRAM yang cukup untuk varian model 27B Anda. Pemuatan awal atau inferensi lokal dapat menunggu hingga 5 menit per permintaan. Skill, chat, tugas, review, dan ekspor memakai alur yang sama. GPT Image tetap membutuhkan koneksi OpenAI terpisah melalui `MARKETING_IMAGE_KEY`.
+Launcher membaca `.env.local`, mempertahankan data kantor, dan tidak meneruskan kunci teks provider cloud ke Ollama. Endpoint HTTP diperbolehkan hanya untuk loopback (`localhost`, `127.0.0.1`, `[::1]`); provider di jaringan lain tetap membutuhkan HTTPS. Perangkat harus memiliki RAM/VRAM yang cukup untuk model yang Anda pilih. Pemuatan awal atau inferensi lokal dapat menunggu hingga 5 menit per permintaan. Skill, chat, tugas, review, dan ekspor memakai alur yang sama. GPT Image tetap membutuhkan koneksi OpenAI terpisah melalui `MARKETING_IMAGE_KEY`.
 
 Jika kantor dijalankan di cloud, localhost menunjuk mesin cloud dan tidak dapat menjangkau Ollama pada laptop Anda. Jalankan kantor di laptop untuk memakai model lokal tanpa integrasi jaringan tambahan.
 
