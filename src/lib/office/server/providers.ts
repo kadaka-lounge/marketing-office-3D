@@ -1,13 +1,13 @@
 import type { Campaign, OfficeConfig, OfficeState, Task, ProviderId } from '../types';
 import { agentForTask, artifactForTask } from './store';
 import { OfficeError } from './validation';
-import {backendConnection,providerConnection,metaConnection,tiktokConnection} from './backend';
+import {backendConnection,providerConnection,metaConnection,tiktokConnection,imageConnection,imageProvider} from './backend';
 import {isLocalEndpoint} from '../endpoints';
 
 const defaultBase = 'https://api.openai.com/v1';
 const baseUrl = () => backendConnection().baseUrl;
 const aiKey = () => backendConnection().key;
-const imageKey = () => process.env.MARKETING_IMAGE_KEY || (providerConnection('openai').enabled?providerConnection('openai').key:undefined) || (baseUrl() === defaultBase ? aiKey() : undefined);
+import {requestConfiguredImage} from './images';
 export function officeConfig(): OfficeConfig {
   let provider = 'OpenAI';
   try { if (baseUrl() !== defaultBase) provider = new URL(baseUrl()).hostname; } catch { provider = 'Konfigurasi URL tidak valid'; }
@@ -15,7 +15,7 @@ export function officeConfig(): OfficeConfig {
   if(local){const port=new URL(baseUrl()).port;provider=port==='11434'?'Ollama (lokal)':port==='1234'?'LM Studio (lokal)':'LLM lokal';}
   const providers=(['claude','gemini','openai'] as const).map(id=>{const c=providerConnection(id);return {provider:id,model:c.model,enabled:c.enabled,configured:Boolean(c.key),keySource:c.keySource};});
   const meta=metaConnection();const tiktok=tiktokConnection();const defaultAIConfigured=local||Boolean(aiKey());
-  return { tiktok:{enabled:tiktok.enabled,configured:Boolean(tiktok.key),keySource:tiktok.keySource},defaultAIConfigured,providers,meta:{enabled:meta.enabled,configured:Boolean(meta.key),keySource:meta.keySource},aiConfigured: defaultAIConfigured||providers.some(p=>p.enabled&&p.configured), aiProvider: provider, aiModel: backendConnection().model, aiBaseUrl:baseUrl(), aiLocal:local, aiKeySource:backendConnection().keySource, imageConfigured: Boolean(imageKey()), publisherConfigured: Boolean(process.env.MARKETING_PUBLISH_URL && process.env.MARKETING_PUBLISH_TOKEN), accessProtected: Boolean(process.env.OFFICE_ACCESS_TOKEN) };
+  return { tiktok:{enabled:tiktok.enabled,configured:Boolean(tiktok.key),keySource:tiktok.keySource},defaultAIConfigured,providers,meta:{enabled:meta.enabled,configured:Boolean(meta.key),keySource:meta.keySource},aiConfigured: defaultAIConfigured||providers.some(p=>p.enabled&&p.configured), aiProvider: provider, aiModel: backendConnection().model, aiBaseUrl:baseUrl(), aiLocal:local, aiKeySource:backendConnection().keySource, imageConfigured:Boolean(imageConnection().key),imageProvider:imageProvider(),imageModel:imageConnection().model,imageProviders:(['openai','imagen','huggingface'] as const).map(id=>{const c=imageConnection(id);return {provider:id,model:c.model,aspectRatio:c.aspectRatio,configured:Boolean(c.key),keySource:c.keySource};}), publisherConfigured: Boolean(process.env.MARKETING_PUBLISH_URL && process.env.MARKETING_PUBLISH_TOKEN), accessProtected: Boolean(process.env.OFFICE_ACCESS_TOKEN) };
 }
 export function taskConnection(task?:Task){
   if(task?.division==='analytics'&&providerConnection('claude').enabled)return providerConnection('claude');
@@ -109,19 +109,7 @@ function demoOutput(state: OfficeState, task: Task, campaign: Campaign) {
   const skillContext = agentForTask(task, state).skills?.map(s => `### ${s.name}\n${s.instructions}`).join('\n\n');
   return header + (outputs[task.agentId] || `## Tugas manager\n${task.instructions}\n\n1. Klarifikasi input yang belum tersedia.\n2. Susun hasil kerja sesuai brief.\n3. Laporkan hasil untuk ditinjau manager.`) + `\n\n**Instruksi tugas:** ${task.instructions}` + (skillContext ? `\n\n## Skill agen\n${skillContext}\n\nSimulasi mencatat instruksi skill; interpretasi substansial memerlukan AI langsung atau penyuntingan manual.` : '') + upstream + (feedback.length ? `\n\n## Catatan manager yang harus diterapkan\n${feedback.map(f => `- ${f}`).join('\n')}\n\nTemplate demo mencatat masukan ini; sunting hasil secara manual atau jalankan AI untuk interpretasi substantif.` : '') + '\n\n**Status: menunggu review Marketing Manager.**';
 }
-export async function requestImage(prompt: string): Promise<Buffer> {
-  const key = imageKey();
-  if (!key) throw new OfficeError('GPT Image belum dikonfigurasi. Isi API key OpenAI Graphic Design atau MARKETING_IMAGE_KEY melalui environment.', 409);
-  const response = await checkedFetch(`${defaultBase}/images/generations`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: process.env.MARKETING_IMAGE_MODEL || 'gpt-image-1', prompt: prompt.slice(0, 12000), n: 1, size: '1024x1024', output_format: 'png' }) }, 120000);
-  try {
-    const payload = await response.json();
-    const encoded = payload?.data?.[0]?.b64_json;
-    if (typeof encoded !== 'string' || encoded.length > 40 * 1024 * 1024 || !/^[A-Za-z0-9+/=]+$/.test(encoded)) throw new Error('invalid');
-    const buffer = Buffer.from(encoded, 'base64');
-    if (!buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) throw new Error('invalid');
-    return buffer;
-  } catch { throw new OfficeError('GPT Image tidak mengembalikan gambar PNG yang valid. Aset sebelumnya tetap tersedia.', 502); }
-}
+export async function requestImage(prompt:string){return requestConfiguredImage(prompt);}
 export async function sendPublication(payload: unknown, idempotencyKey: string) {
   const url = process.env.MARKETING_PUBLISH_URL; const token = process.env.MARKETING_PUBLISH_TOKEN;
   if (!url || !token) throw new OfficeError('Webhook publisher belum dikonfigurasi. Gunakan ekspor untuk publikasi manual.', 409);

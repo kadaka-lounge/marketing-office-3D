@@ -8,7 +8,7 @@ import {backendConnection,providerConnection,metaConnection} from '../../src/lib
 import {generateOutput,taskConnection,testProviderConnection,requestImage} from '../../src/lib/office/server/providers';
 import type {ProviderId} from '../../src/lib/office/types';
 let directory:string;
-const names=['TIKTOK_ACCESS_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_AI_BASE_URL','MARKETING_IMAGE_KEY','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN'];
+const names=['GOOGLE_IMAGEN_KEY','GOOGLE_IMAGEN_MODEL','HF_IMAGE_TOKEN','HF_IMAGE_MODEL','MARKETING_IMAGE_MODEL','TIKTOK_ACCESS_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_AI_BASE_URL','MARKETING_IMAGE_KEY','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN'];
 beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'office-providers-'));vi.stubEnv('OFFICE_DATA_DIR',directory);names.forEach(n=>vi.stubEnv(n,''));});
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllGlobals();vi.unstubAllEnvs();vi.restoreAllMocks();});
 async function save(provider:ProviderId,apiKey=`fake-${provider}-secret`,enabled=true){await performAction({type:'saveProvider',provider,settings:{enabled,model:provider==='gemini'?'gemini-2.5-flash':'test-model',apiKey}});}
@@ -60,7 +60,7 @@ it('validates Meta identity using a separate bearer token with GET only and no t
 });
 it('uses only the OpenAI profile for GPT Image, never Claude or Gemini keys',async()=>{
  await save('claude');await save('gemini');await expect(requestImage('test')).rejects.toThrow('GPT Image belum');
- await save('openai');const fetcher=vi.fn().mockResolvedValue(Response.json({data:[{b64_json:Buffer.from([137,80,78,71,13,10,26,10]).toString('base64')}]}));vi.stubGlobal('fetch',fetcher);
+ await save('openai');const fetcher=vi.fn().mockResolvedValue(Response.json({data:[{b64_json:'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWNQCv2vFPqfAUIBACWCBdkiTiprAAAAAElFTkSuQmCC'}]}));vi.stubGlobal('fetch',fetcher);
  await requestImage('test');expect(fetcher.mock.calls[0][1].headers.Authorization).toBe('Bearer fake-openai-secret');expect(fetcher.mock.calls[0][0]).toBe('https://api.openai.com/v1/images/generations');
 });
 it('blocks changing profiles during active work and rejects arbitrary native endpoints',async()=>{

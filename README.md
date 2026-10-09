@@ -56,7 +56,7 @@ LOCAL_LLM_MODEL=qwen2.5:3b
 LOCAL_LLM_BASE_URL=http://127.0.0.1:11434/v1
 ```
 
-Launcher membaca `.env.local`, mempertahankan data kantor, dan tidak meneruskan kunci teks provider cloud ke Ollama. Endpoint HTTP diperbolehkan hanya untuk loopback (`localhost`, `127.0.0.1`, `[::1]`); provider di jaringan lain tetap membutuhkan HTTPS. Perangkat harus memiliki RAM/VRAM yang cukup untuk model yang Anda pilih. Pemuatan awal atau inferensi lokal dapat menunggu hingga 5 menit per permintaan. Skill, chat, tugas, review, dan ekspor memakai alur yang sama. GPT Image membutuhkan koneksi OpenAI melalui API per divisi atau `MARKETING_IMAGE_KEY`.
+Launcher membaca `.env.local`, mempertahankan data kantor, dan tidak meneruskan kunci teks provider cloud ke Ollama. Endpoint HTTP diperbolehkan hanya untuk loopback (`localhost`, `127.0.0.1`, `[::1]`); provider di jaringan lain tetap membutuhkan HTTPS. Perangkat harus memiliki RAM/VRAM yang cukup untuk model yang Anda pilih. Pemuatan awal atau inferensi lokal dapat menunggu hingga 5 menit per permintaan. Skill, chat, tugas, review, dan ekspor memakai alur yang sama. Pembuatan visual memakai provider terpisah pada tab **Model Gambar**: GPT Image, Google Imagen, atau Hugging Face FLUX.1. Ollama tetap digunakan untuk pekerjaan teks.
 
 Jika kantor dijalankan di cloud, localhost menunjuk mesin cloud dan tidak dapat menjangkau Ollama pada laptop Anda. Jalankan kantor di laptop untuk memakai model lokal tanpa integrasi jaringan tambahan.
 
@@ -188,3 +188,19 @@ Rantai dev dependency `fast-glob → micromatch → braces` memiliki advisory ta
 Verifikasi instalasi menggunakan `npm ci`, lalu `npm run audit`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e`, dan `npm run build`. Audit npm saat pembaruan ini melaporkan **0 kerentanan**, termasuk dependency development. Angka ini merupakan hasil database advisory npm saat pengujian, bukan jaminan terhadap advisory baru. GitHub Dependabot dapat memerlukan waktu untuk menghitung ulang alert setelah push.
 
 Data runtime (`.data`, termasuk kunci enkripsi) dan berkas `.env` dikecualikan dari output file tracing Next.js. Data kantor tetap harus disediakan sebagai penyimpanan privat terpisah pada server deployment.
+
+### Model pembuat gambar
+
+Buka **Backend & API → Model Gambar**, pilih provider, isi kunci/token, tentukan model dan rasio, lalu simpan. Pilihan aktif digunakan oleh **Buat visual** pada hasil Graphic Design. Kunci tiap provider terenkripsi dan disimpan terpisah dari provider teks; mengganti provider mempertahankan kunci provider lainnya. Kolom kosong mempertahankan kunci, sedangkan **Hapus kunci** juga menonaktifkan fallback environment untuk provider tersebut. Provider yang gagal tidak otomatis diganti oleh provider lain.
+
+| Provider | Model preset | Kunci environment opsional |
+| --- | --- | --- |
+| OpenAI | `gpt-image-1` | `MARKETING_IMAGE_KEY`, model `MARKETING_IMAGE_MODEL` |
+| Google AI Studio / Gemini API | `imagen-3.0-generate-002` | `GOOGLE_IMAGEN_KEY`, model `GOOGLE_IMAGEN_MODEL` |
+| Hugging Face Inference Providers | `black-forest-labs/FLUX.1-schnell`, `black-forest-labs/FLUX.1-dev` | `HF_IMAGE_TOKEN`, model `HF_IMAGE_MODEL` |
+
+Google memakai endpoint native `https://generativelanguage.googleapis.com/v1beta/models/{model}:predict` dengan header `x-goog-api-key`. Akses Imagen 3 bergantung pada model yang masih tersedia, project, billing, dan kuota akun; jika ditolak/404, pilih model Imagen yang tersedia di Google AI Studio. Preset `imagen-4.0-generate-001` juga tersedia. Kunci Gemini teks tidak otomatis dipakai untuk gambar.
+
+Hugging Face memakai SDK resmi `@huggingface/inference` dengan pemilihan provider `auto` dan endpoint `router.huggingface.co`, bukan endpoint lama `api-inference.huggingface.co`. Gunakan token `hf_` dengan izin Inference Providers, kredit, dan akses model/lisensi bila diperlukan. Model FLUX.1-dev dapat memerlukan persetujuan akses. Unduhan hasil URL memakai HTTPS tanpa token, tanpa redirect, dan dibatasi ke domain/subdomain `fal.media`, `replicate.delivery`, `huggingface.co`, atau `hf.co`; provider dengan CDN lain perlu dukungan tambahan. Allowlist jaringan server perlu mengizinkan domain tersebut serta `huggingface.co`, `router.huggingface.co`, dan `generativelanguage.googleapis.com`.
+
+Hasil PNG/JPEG/WebP divalidasi dan disimpan sebagai PNG pada rasio 1:1, 4:5, 9:16, atau 16:9. Rasio 4:5 menggunakan rasio native Imagen 3:4 lalu crop. Cover TikTok berupa gambar statis. Kegagalan generasi mempertahankan aset sebelumnya; gambar baru membatalkan persetujuan hasil terkait agar Marketing Manager meninjaunya lagi. **Uji gambar tersimpan** benar-benar membuat satu gambar dan dapat memakai kuota berbayar, tanpa menambahkan aset ke kampanye. Tes otomatis memakai respons provider tiruan; akses model dan kunci akun perlu diuji melalui tombol ini setelah dikonfigurasi.

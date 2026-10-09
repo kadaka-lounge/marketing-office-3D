@@ -14,7 +14,7 @@ async function runDemo(){return (await performAction({type:'runCampaign',campaig
 async function approveAll(){for(const a of readState().artifacts)await performAction({type:'approveArtifact',artifactId:a.id});}
 beforeEach(()=>{
  directory=mkdtempSync(path.join(tmpdir(),'kadaka-unit-'));vi.stubEnv('OFFICE_DATA_DIR',directory);
- for(const name of ['TIKTOK_ACCESS_TOKEN','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_IMAGE_KEY','OFFICE_ACCESS_TOKEN','MARKETING_AI_BASE_URL','MARKETING_PUBLISH_URL','MARKETING_PUBLISH_TOKEN'])vi.stubEnv(name,'');
+ for(const name of ['GOOGLE_IMAGEN_KEY','GOOGLE_IMAGEN_MODEL','HF_IMAGE_TOKEN','HF_IMAGE_MODEL','MARKETING_IMAGE_MODEL','TIKTOK_ACCESS_TOKEN','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_IMAGE_KEY','OFFICE_ACCESS_TOKEN','MARKETING_AI_BASE_URL','MARKETING_PUBLISH_URL','MARKETING_PUBLISH_TOKEN'])vi.stubEnv(name,'');
 });
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 
@@ -105,12 +105,12 @@ describe('real providers and access boundaries',()=>{
  });
  it('packages generated PNG assets and invalidates dependent approvals after adding a visual',async()=>{
   await runDemo();await approveAll();const artifact=readState().artifacts.find(a=>a.type==='design')!;
-  const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6z+AAAAAASUVORK5CYII=';
+  const png='iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWNQCv2vFPqfAUIBACWCBdkiTiprAAAAAElFTkSuQmCC';
   vi.stubEnv('MARKETING_IMAGE_KEY','unit-test-placeholder');vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({data:[{b64_json:png}]}),{status:200})));
   await performAction({type:'generateImage',artifactId:artifact.id});
   const updated=readState().artifacts.find(a=>a.id===artifact.id)!;
   expect(updated.imageUrl).toMatch(/^\/api\/office\/assets\/image-/);expect(updated.status).toBe('review');
-  const pack=exportCampaign(campaignId);expect(pack.assets).toHaveLength(1);expect(pack.assets[0].dataBase64).toBe(png);expect(pack.approved).toBe(false);
+  const pack=exportCampaign(campaignId);expect(pack.assets).toHaveLength(1);expect(Buffer.from(pack.assets[0].dataBase64,'base64').subarray(0,8)).toEqual(Buffer.from([137,80,78,71,13,10,26,10]));expect(pack.approved).toBe(false);
  });
  it('accepts only an explicit published receipt from an idempotent webhook',async()=>{
   vi.stubEnv('MARKETING_PUBLISH_URL','https://publisher.example.test/submit');vi.stubEnv('MARKETING_PUBLISH_TOKEN','unit-test-placeholder');

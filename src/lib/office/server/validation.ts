@@ -11,7 +11,13 @@ export const backendSchema = z.object({ baseUrl: z.string().trim().url().max(100
 const agentDraft = z.object({ name: text(60), role: text(160), division: z.enum(['marketing','design','analytics','publisher']), avatarIndex: z.number().int().min(1).max(8), instructions: z.string().trim().max(4000), skills: z.array(z.object({ name: text(80), instructions: text(2000) }).strict()).min(1).max(6).refine(v => new Set(v.map(s => s.name.toLowerCase())).size === v.length, 'Nama skill tidak boleh duplikat.') }).strict();
 const credential = { enabled:z.boolean(), apiKey:z.string().trim().max(4096).refine(v=>!/[\r\n]/.test(v),'Kunci tidak valid.').optional(), clearKey:z.boolean().optional() };
 const providerSettings = z.object({...credential,model:text(160).regex(/^[a-zA-Z0-9._:-]+$/,'Gunakan ID model provider tanpa slash atau spasi.')}).strict();
+const imageSettings=z.object({provider:z.enum(['openai','imagen','huggingface']),model:text(160),aspectRatio:z.enum(['1:1','4:5','9:16','16:9']),apiKey:credential.apiKey,clearKey:credential.clearKey}).strict().superRefine((v,ctx)=>{
+ const valid=v.provider==='huggingface'?['black-forest-labs/FLUX.1-schnell','black-forest-labs/FLUX.1-dev'].includes(v.model):v.provider==='imagen'?/^imagen-[a-zA-Z0-9._-]+$/.test(v.model):/^[a-zA-Z0-9._-]+$/.test(v.model);
+ if(!valid)ctx.addIssue({code:'custom',path:['model'],message:'Gunakan ID model yang sesuai provider; FLUX.1 mendukung varian schnell atau dev.'});
+ if(v.provider==='huggingface'&&v.apiKey&&!v.apiKey.startsWith('hf_'))ctx.addIssue({code:'custom',path:['apiKey'],message:'Gunakan token Hugging Face yang diawali hf_.'});
+});
 export const actionSchema = z.discriminatedUnion('type', [
+  z.object({type:z.literal('saveImageProvider'),settings:imageSettings}).strict(),
   z.object({type:z.literal('saveProvider'),provider:z.enum(['claude','gemini','openai']),settings:providerSettings}).strict(),
   z.object({type:z.literal('saveTikTok'),settings:z.object(credential).strict()}).strict(),
   z.object({type:z.literal('checkTikTok'),publicationId:id}).strict(),

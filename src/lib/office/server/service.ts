@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Artifact, OfficeAction, OfficeResponse, OfficeState, Task } from '../types';
 import { DIVISIONS } from '../catalog';
-import {saveBackend,saveProvider,saveMeta,saveTikTok} from './backend';
+import {saveBackend,saveProvider,saveMeta,saveTikTok,saveImageProvider} from './backend';
 import { addCampaign, addMessage, artifactById, artifactForTask, assertOfficeIdle, assertUnlocked, campaignById, dataDirectory, invalidate, lockCampaign, mutate, now, readState, readyForPublication, renewCampaignLock, taskArtifactType, taskById, taskForAgent, uid, unlockCampaign } from './store';
 import { generateOutput, officeConfig, requestImage, requireAI, sendPublication } from './providers';
 import {initializeTikTokPost,validateTikTokPost,tiktokPostStatus,TikTokRejected,type TikTokPost} from './tiktok';
@@ -111,7 +111,7 @@ async function publish(publicationId: string) {
 }
 async function generateImage(artifactId: string) {
   const artifact = artifactById(readState(), artifactId);
-  if (artifact.type !== 'design') throw new OfficeError('GPT Image tersedia untuk hasil kerja desain.', 409);
+  if (artifact.type !== 'design') throw new OfficeError('Pembuatan gambar tersedia untuk hasil kerja desain.', 409);
   const task = taskById(readState(), artifact.taskId);
   if (!['review','approved'].includes(task.status) || artifact.status === 'revision') throw new OfficeError('Selesaikan revisi desain sebelum membuat gambar.', 409);
   const token = lockCampaign(artifact.campaignId);
@@ -125,13 +125,14 @@ async function generateImage(artifactId: string) {
       invalidate(state, current.taskId, false);
       current.imageUrl = `/api/office/assets/${name}`; current.version += 1; current.status = 'review'; current.createdAt = now();
       taskById(state, current.taskId).status = 'review';
-      report(state, task, 'Konsep GPT Image berhasil dibuat. Gambar dan hasil turunannya perlu ditinjau ulang oleh Marketing Manager.');
+      report(state, task, 'Konsep visual berhasil dibuat. Gambar dan hasil turunannya perlu ditinjau ulang oleh Marketing Manager.');
     });
   } finally { unlockCampaign(artifact.campaignId, token); }
 }
 export async function performAction(value: unknown): Promise<OfficeResponse> {
   const action: OfficeAction = parseAction(value);
   switch (action.type) {
+    case 'saveImageProvider': assertOfficeIdle(); saveImageProvider(action.settings); mutate(()=>{}); break;
     case 'saveProvider': assertOfficeIdle(); saveProvider(action.provider,action.settings); mutate(()=>{}); break;
     case 'saveTikTok': assertOfficeIdle(); saveTikTok(action.settings); mutate(()=>{}); break;
     case 'publishTikTok': await publishTikTok(action); break;

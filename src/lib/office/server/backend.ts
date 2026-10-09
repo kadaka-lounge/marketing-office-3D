@@ -3,12 +3,13 @@ import {readFileSync,writeFileSync,mkdirSync,renameSync} from 'node:fs';
 import path from 'node:path';
 import {dataDirectory} from './store';
 import {OfficeError} from './validation';
-import type {BackendDraft,ProviderDraft,ProviderId,MetaDraft} from '../types';
+import type {BackendDraft,ProviderDraft,ProviderId,MetaDraft,ImageProviderDraft,ImageProviderId,ImageAspectRatio} from '../types';
 import {normalizeAIBaseUrl} from '../endpoints';
 
 const OPENAI='https://api.openai.com/v1';
 interface StoredProfile {model?:string;enabled:boolean;secret?:string;disableEnvironmentKey?:boolean;}
-interface StoredBackend {profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;tiktok?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
+interface StoredImage extends StoredProfile {aspectRatio:ImageAspectRatio;}
+interface StoredBackend {images?:Partial<Record<ImageProviderId,StoredImage>>;imageProvider?:ImageProviderId;profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;tiktok?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
 export function environmentBaseUrl(){return normalizeAIBaseUrl(process.env.MARKETING_AI_BASE_URL||OPENAI);}
 function readStored():StoredBackend|undefined {
  try{return JSON.parse(readFileSync(path.join(dataDirectory(),'backend.json'),'utf8'));}
@@ -75,3 +76,16 @@ export function saveMeta(input:MetaDraft){const next=storedOrDefault();next.meta
 
 export function tiktokConnection(){const profile=readStored()?.tiktok;const connection=profileKey(profile,'TIKTOK_ACCESS_TOKEN');return {enabled:profile?.enabled??Boolean(connection.key),...connection};}
 export function saveTikTok(input:MetaDraft){const next=storedOrDefault();next.tiktok=updatedProfile(next.tiktok,input);writeStored(next);}
+
+export const IMAGE_PROVIDERS={openai:{model:'gpt-image-1',environment:'MARKETING_IMAGE_KEY'},imagen:{model:'imagen-3.0-generate-002',environment:'GOOGLE_IMAGEN_KEY'},huggingface:{model:'black-forest-labs/FLUX.1-schnell',environment:'HF_IMAGE_TOKEN'}} as const;
+export function imageProvider(){return readStored()?.imageProvider||'openai';}
+export function imageConnection(provider:ImageProviderId=imageProvider()){
+ const profile=readStored()?.images?.[provider];const connection=profileKey(profile,IMAGE_PROVIDERS[provider].environment);
+ let key=connection.key;let keySource:typeof connection.keySource|'shared'=connection.keySource;
+ if(provider==='openai'&&!key&&!profile?.disableEnvironmentKey){
+  const design=providerConnection('openai');const main=backendConnection();key=(design.enabled?design.key:undefined)||(main.baseUrl===OPENAI?main.key:undefined);if(key)keySource='shared';
+ }
+ const environmentModel=provider==='openai'?process.env.MARKETING_IMAGE_MODEL:provider==='imagen'?process.env.GOOGLE_IMAGEN_MODEL:process.env.HF_IMAGE_MODEL;
+ return {provider,model:profile?.model||environmentModel||IMAGE_PROVIDERS[provider].model,aspectRatio:profile?.aspectRatio||'1:1' as ImageAspectRatio,key,keySource};
+}
+export function saveImageProvider(input:ImageProviderDraft){const next=storedOrDefault();next.imageProvider=input.provider;next.images={...next.images,[input.provider]:{...updatedProfile(next.images?.[input.provider],{...input,enabled:true}),aspectRatio:input.aspectRatio}};writeStored(next);}
