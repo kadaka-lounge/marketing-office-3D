@@ -1,4 +1,4 @@
-# KADAKA · Marketing Office 3D
+#Marketing Office 3D
 
 Kantor pemasaran dengan seorang **Marketing Manager manusia** dan delapan agen awal dalam empat divisi. Tambahkan agen dan skill melalui tab **Backend & API**. Tampilan kantor 3D memakai karakter voxel dan aset terpilih dari [Claw3D](https://github.com/iamlukethedev/Claw3D). Pekerjaan terhubung ke brief, tugas, percakapan, hasil kerja, persetujuan, dan paket publikasi yang tersimpan secara lokal.
 
