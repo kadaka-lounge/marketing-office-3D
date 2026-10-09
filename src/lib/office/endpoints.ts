@@ -12,3 +12,9 @@ export function normalizeAIBaseUrl(value:string):string {
   url.pathname=pathname||'/';return !pathname&&!url.search&&!url.hash?url.href.replace(/\/$/,''):url.href;
  }catch{return value.trim().replace(/\/+$/,'');}
 }
+
+/** Accept an image API base or full generation endpoint without hiding invalid URL parts. */
+export function normalizeImageBaseUrl(value:string):string {
+ try {const url=new URL(value.trim());let pathname=url.pathname.replace(/\/+$/,'').replace(/\/images\/generations$/,'');if(!pathname)pathname='/v1';url.pathname=pathname;return url.href.replace(/\/$/,'');}
+ catch{return value.trim();}
+}

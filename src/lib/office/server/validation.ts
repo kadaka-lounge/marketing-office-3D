@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {isLocalEndpoint} from '../endpoints';
+import {isLocalEndpoint,normalizeImageBaseUrl} from '../endpoints';
 
 const id = z.string().trim().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -11,9 +11,10 @@ export const backendSchema = z.object({ baseUrl: z.string().trim().url().max(100
 const agentDraft = z.object({ name: text(60), role: text(160), division: z.enum(['marketing','design','analytics','publisher']), avatarIndex: z.number().int().min(1).max(8), instructions: z.string().trim().max(4000), skills: z.array(z.object({ name: text(80), instructions: text(2000) }).strict()).min(1).max(6).refine(v => new Set(v.map(s => s.name.toLowerCase())).size === v.length, 'Nama skill tidak boleh duplikat.') }).strict();
 const credential = { enabled:z.boolean(), apiKey:z.string().trim().max(4096).refine(v=>!/[\r\n]/.test(v),'Kunci tidak valid.').optional(), clearKey:z.boolean().optional() };
 const providerSettings = z.object({...credential,model:text(160).regex(/^[a-zA-Z0-9._:-]+$/,'Gunakan ID model provider tanpa slash atau spasi.')}).strict();
-const imageSettings=z.object({provider:z.enum(['openai','imagen','huggingface']),model:text(160),aspectRatio:z.enum(['1:1','4:5','9:16','16:9']),apiKey:credential.apiKey,clearKey:credential.clearKey}).strict().superRefine((v,ctx)=>{
- const valid=v.provider==='huggingface'?['black-forest-labs/FLUX.1-schnell','black-forest-labs/FLUX.1-dev'].includes(v.model):v.provider==='imagen'?/^imagen-[a-zA-Z0-9._-]+$/.test(v.model):/^[a-zA-Z0-9._-]+$/.test(v.model);
+const imageSettings=z.object({provider:z.enum(['openai','imagen','huggingface','qwen']),model:text(160),aspectRatio:z.enum(['1:1','4:5','9:16','16:9']),baseUrl:z.string().trim().max(1000).optional(),apiKey:credential.apiKey,clearKey:credential.clearKey}).strict().superRefine((v,ctx)=>{
+ const valid=v.provider==='qwen'?/^[a-zA-Z0-9._/:-]+$/.test(v.model):v.provider==='huggingface'?['black-forest-labs/FLUX.1-schnell','black-forest-labs/FLUX.1-dev'].includes(v.model):v.provider==='imagen'?/^imagen-[a-zA-Z0-9._-]+$/.test(v.model):/^[a-zA-Z0-9._-]+$/.test(v.model);
  if(!valid)ctx.addIssue({code:'custom',path:['model'],message:'Gunakan ID model yang sesuai provider; FLUX.1 mendukung varian schnell atau dev.'});
+ if(v.baseUrl!==undefined){let valid=false;try{const u=new URL(normalizeImageBaseUrl(v.baseUrl));valid=v.provider==='qwen'&&(u.protocol==='https:'||isLocalEndpoint(u.href))&&!u.username&&!u.password&&!u.search&&!u.hash;}catch{}if(!valid)ctx.addIssue({code:'custom',path:['baseUrl'],message:'Endpoint Qwen harus HTTPS atau HTTP loopback, tanpa kredensial, query, atau fragment.'});}
  if(v.provider==='huggingface'&&v.apiKey&&!v.apiKey.startsWith('hf_'))ctx.addIssue({code:'custom',path:['apiKey'],message:'Gunakan token Hugging Face yang diawali hf_.'});
 });
 const videoSettings=z.object({model:z.enum(['Wan-AI/Wan2.2-T2V-A14B','Wan-AI/Wan2.1-T2V-14B']),aspectRatio:z.enum(['16:9','9:16','1:1']),apiKey:credential.apiKey.refine(v=>!v||v.startsWith('hf_'),'Gunakan token Hugging Face yang diawali hf_.'),clearKey:credential.clearKey}).strict();

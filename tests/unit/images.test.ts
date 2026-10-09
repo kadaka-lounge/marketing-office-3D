@@ -3,6 +3,8 @@ import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
+import {createServer} from 'node:http';
+import type {AddressInfo} from 'node:net';
 import {getOffice,performAction} from '../../src/lib/office/server/service';
 import {closeDatabases,lockCampaign,unlockCampaign} from '../../src/lib/office/server/store';
 import {imageConnection} from '../../src/lib/office/server/backend';
@@ -10,7 +12,7 @@ import {requestConfiguredImage,testImageProvider} from '../../src/lib/office/ser
 import type {ImageProviderDraft} from '../../src/lib/office/types';
 const png='iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWNQCv2vFPqfAUIBACWCBdkiTiprAAAAAElFTkSuQmCC';
 let directory:string;
-beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'office-images-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const n of ['GOOGLE_IMAGEN_KEY','GOOGLE_IMAGEN_MODEL','HF_IMAGE_TOKEN','HF_IMAGE_MODEL','MARKETING_IMAGE_MODEL','MARKETING_IMAGE_KEY','MARKETING_AI_KEY','OPENAI_API_KEY','DESIGN_OPENAI_KEY','OFFICE_ACCESS_TOKEN'])vi.stubEnv(n,'');});
+beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'office-images-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const n of ['QWEN_IMAGE_KEY','QWEN_IMAGE_MODEL','QWEN_IMAGE_BASE_URL'])vi.stubEnv(n,'');for(const n of ['GOOGLE_IMAGEN_KEY','GOOGLE_IMAGEN_MODEL','HF_IMAGE_TOKEN','HF_IMAGE_MODEL','MARKETING_IMAGE_MODEL','MARKETING_IMAGE_KEY','MARKETING_AI_KEY','OPENAI_API_KEY','DESIGN_OPENAI_KEY','OFFICE_ACCESS_TOKEN'])vi.stubEnv(n,'');});
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllGlobals();vi.unstubAllEnvs();vi.restoreAllMocks();});
 const save=(settings:ImageProviderDraft)=>performAction({type:'saveImageProvider',settings});
 const imagen={provider:'imagen',model:'imagen-3.0-generate-002',aspectRatio:'4:5',apiKey:'fake-google-image-secret'} as const;
@@ -52,4 +54,24 @@ it('protects the test route and validates a test image without adding campaign a
  expect((await POST(new Request('http://localhost/api/office/images/test',{method:'POST',headers:{origin:'https://other.test'}}))).status).toBe(403);
  vi.stubEnv('OFFICE_ACCESS_TOKEN','fake-manager');expect((await POST(new Request('http://localhost/api/office/images/test',{method:'POST'}))).status).toBe(401);expect(fetcher).not.toHaveBeenCalled();vi.stubEnv('OFFICE_ACCESS_TOKEN','');
  await save(imagen);const before=getOffice().state.artifacts;expect(await testImageProvider()).toMatchObject({ok:true,provider:'imagen',width:768,height:960});expect(getOffice().state.artifacts).toEqual(before);
+});
+
+it('generates Qwen images through a real loopback OpenAI-compatible server without forwarding cloud keys',async()=>{
+ await performAction({type:'saveProvider',provider:'openai',settings:{model:'gpt-4.1-mini',enabled:true,apiKey:'fake-cloud-key'}});
+ let received:{path?:string;authorization?:string;body?:Record<string,unknown>}={};
+ const server=createServer(async(req,res)=>{const chunks=[];for await(const chunk of req)chunks.push(chunk);received={path:req.url,authorization:req.headers.authorization,body:JSON.parse(Buffer.concat(chunks).toString())};res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({data:[{b64_json:png}]}));});
+ await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try{const baseUrl=`http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/images/generations`;await save({provider:'qwen',model:'Qwen-Image-2.1-Uncensored-GGUF',aspectRatio:'4:5',baseUrl});expect(imageConnection().baseUrl).toBe(baseUrl.replace('/images/generations',''));expect(getOffice().config.imageConfigured).toBe(true);const result=await requestConfiguredImage('Qwen concept');expect(await sharp(result).metadata()).toMatchObject({format:'png',width:768,height:960});expect(received).toMatchObject({path:'/v1/images/generations',body:{model:'Qwen-Image-2.1-Uncensored-GGUF',prompt:'Qwen concept',n:1,size:'768x960',response_format:'b64_json',output_format:'png'}});expect(received.authorization).toBeUndefined();}
+ finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+it('scopes Qwen keys to their image endpoint and rejects unsafe or irrelevant endpoints',async()=>{
+ const draft={provider:'qwen',model:'Qwen-Image-2.1-Uncensored-GGUF',aspectRatio:'1:1',baseUrl:'https://image.example.test/v1',apiKey:'fake-qwen-key'} as const;await save(draft);await save({...draft,apiKey:''});expect(imageConnection().key).toBe(draft.apiKey);
+ await save({...draft,baseUrl:'https://other.example.test/v1',apiKey:undefined});expect(imageConnection().key).toBeUndefined();expect(getOffice().config.imageConfigured).toBe(false);
+ for(const baseUrl of ['http://192.168.1.2:1234/v1','https://user:secret@example.test/v1','https://example.test/v1?api_key=secret','file:///tmp/model'])await expect(save({...draft,baseUrl})).rejects.toThrow();
+ await expect(save({...imagen,baseUrl:'https://other.test/v1'})).rejects.toThrow();vi.stubEnv('QWEN_IMAGE_KEY','fake-env-qwen');await save({...draft,apiKey:undefined,clearKey:true});expect(imageConnection().key).toBeUndefined();
+ expect(JSON.stringify(getOffice())+readFileSync(path.join(directory,'backend.json'),'utf8')).not.toContain(draft.apiKey);
+});
+it('rejects credential-bearing environment image endpoints without exposing the secret in config errors',()=>{
+ vi.stubEnv('QWEN_IMAGE_BASE_URL','https://user:fake-url-secret@image.example.test/v1');
+ try{getOffice();throw new Error('Expected invalid endpoint');}catch(error){expect(String(error)).toContain('Endpoint Qwen tidak valid');expect(String(error)).not.toContain('fake-url-secret');}
 });

@@ -2,10 +2,10 @@ export type DivisionId = 'manager' | 'marketing' | 'design' | 'analytics' | 'pub
 export type AgentStatus = 'idle' | 'working' | 'review' | 'error';
 export interface AgentSkill { name: string; instructions: string; }
 export interface AgentDraft { name: string; role: string; division: Exclude<DivisionId, 'manager'>; avatarIndex: number; instructions: string; skills: AgentSkill[]; }
-export type ImageProviderId='openai'|'imagen'|'huggingface';
+export type ImageProviderId='openai'|'imagen'|'huggingface'|'qwen';
 export type ImageAspectRatio='1:1'|'4:5'|'9:16'|'16:9';
-export interface ImageProviderDraft {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;apiKey?:string;clearKey?:boolean;}
-export interface ImageProviderStatus {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;configured:boolean;keySource:'stored'|'environment'|'none'|'shared';}
+export interface ImageProviderDraft {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;baseUrl?:string;apiKey?:string;clearKey?:boolean;}
+export interface ImageProviderStatus {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;baseUrl?:string;local?:boolean;configured:boolean;keySource:'stored'|'environment'|'none'|'shared';}
 export type VideoAspectRatio='16:9'|'9:16'|'1:1';
 export interface VideoProviderDraft {model:string;aspectRatio:VideoAspectRatio;apiKey?:string;clearKey?:boolean;}
 export interface VideoProviderStatus {provider:'huggingface';model:string;aspectRatio:VideoAspectRatio;configured:boolean;keySource:'stored'|'environment'|'none';}
