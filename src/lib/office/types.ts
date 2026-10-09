@@ -2,13 +2,15 @@ export type DivisionId = 'manager' | 'marketing' | 'design' | 'analytics' | 'pub
 export type AgentStatus = 'idle' | 'working' | 'review' | 'error';
 export interface AgentSkill { name: string; instructions: string; }
 export interface AgentDraft { name: string; role: string; division: Exclude<DivisionId, 'manager'>; avatarIndex: number; instructions: string; skills: AgentSkill[]; }
-export type ImageProviderId='openai'|'imagen'|'huggingface'|'qwen';
+export type ImageProviderId='openai'|'imagen'|'huggingface'|'qwen'|'comfyui';
 export type ImageAspectRatio='1:1'|'4:5'|'9:16'|'16:9';
-export interface ImageProviderDraft {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;baseUrl?:string;apiKey?:string;clearKey?:boolean;}
-export interface ImageProviderStatus {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;baseUrl?:string;local?:boolean;configured:boolean;keySource:'stored'|'environment'|'none'|'shared';}
+export interface ComfyDraft {workflow?:string;promptNodeId:string;promptInput:string;outputNodeId:string;clearWorkflow?:boolean;}
+export interface ComfyStatus {workflowConfigured:boolean;promptNodeId:string;promptInput:string;outputNodeId:string;}
+export interface ImageProviderDraft {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;baseUrl?:string;comfy?:ComfyDraft;apiKey?:string;clearKey?:boolean;}
+export interface ImageProviderStatus {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;baseUrl?:string;local?:boolean;comfy?:ComfyStatus;configured:boolean;keySource:'stored'|'environment'|'none'|'shared';}
 export type VideoAspectRatio='16:9'|'9:16'|'1:1';
-export interface VideoProviderDraft {model:string;aspectRatio:VideoAspectRatio;apiKey?:string;clearKey?:boolean;}
-export interface VideoProviderStatus {provider:'huggingface';model:string;aspectRatio:VideoAspectRatio;configured:boolean;keySource:'stored'|'environment'|'none';}
+export interface VideoProviderDraft {provider?:'huggingface'|'comfyui';baseUrl?:string;comfy?:ComfyDraft;model:string;aspectRatio:VideoAspectRatio;apiKey?:string;clearKey?:boolean;}
+export interface VideoProviderStatus {provider:'huggingface'|'comfyui';baseUrl?:string;local?:boolean;comfy?:ComfyStatus;model:string;aspectRatio:VideoAspectRatio;configured:boolean;keySource:'stored'|'environment'|'none';}
 export type ProviderId = 'claude' | 'gemini' | 'openai';
 export interface ProviderDraft { model:string; enabled:boolean; apiKey?:string; clearKey?:boolean; }
 export interface MetaDraft { enabled:boolean; apiKey?:string; clearKey?:boolean; }
@@ -25,7 +27,7 @@ export interface Publication { id: string; campaignId: string; channel: string; 
 export interface AgentRun { id: string; taskId: string; agentId: string; mode: 'demo' | 'live'; status: 'running' | 'completed' | 'failed'; startedAt: string; completedAt?: string; error?: string; }
 export interface Metric { id: string; campaignId: string; channel: string; impressions: number; clicks: number; conversions: number; spend: number; recordedAt: string; }
 export interface OfficeState { agents: Agent[]; campaigns: Campaign[]; tasks: Task[]; messages: Message[]; artifacts: Artifact[]; publications: Publication[]; runs: AgentRun[]; metrics: Metric[]; revision: number; }
-export interface OfficeConfig { video:VideoProviderStatus; aiConfigured: boolean; defaultAIConfigured:boolean; providers:ProviderStatus[]; tiktok:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; meta:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; aiProvider: string; aiModel: string; imageConfigured: boolean; imageProvider:ImageProviderId; imageModel:string; imageProviders:ImageProviderStatus[]; publisherConfigured: boolean; accessProtected: boolean; aiBaseUrl: string; aiLocal:boolean; aiKeySource: 'environment' | 'stored' | 'none'; }
+export interface OfficeConfig { video:VideoProviderStatus;videoProviders:VideoProviderStatus[]; aiConfigured: boolean; defaultAIConfigured:boolean; providers:ProviderStatus[]; tiktok:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; meta:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; aiProvider: string; aiModel: string; imageConfigured: boolean; imageProvider:ImageProviderId; imageModel:string; imageProviders:ImageProviderStatus[]; publisherConfigured: boolean; accessProtected: boolean; aiBaseUrl: string; aiLocal:boolean; aiKeySource: 'environment' | 'stored' | 'none'; }
 export interface OfficeResponse { state: OfficeState; config: OfficeConfig; }
 export type OfficeAction =
  | {type:'saveVideoProvider';settings:VideoProviderDraft}

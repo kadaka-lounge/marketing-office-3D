@@ -18,3 +18,5 @@ export function normalizeImageBaseUrl(value:string):string {
  try {const url=new URL(value.trim());let pathname=url.pathname.replace(/\/+$/,'').replace(/\/images\/generations$/,'');if(!pathname)pathname='/v1';url.pathname=pathname;return url.href.replace(/\/$/,'');}
  catch{return value.trim();}
 }
+
+export function normalizeComfyBaseUrl(value:string){try{const url=new URL(value.trim());url.pathname=url.pathname.replace(/\/+$/,'').replace(/\/(prompt|system_stats|object_info)$/,'');return url.href.replace(/\/$/,'');}catch{return value.trim();}}

@@ -12,7 +12,7 @@ import {requestConfiguredImage,testImageProvider} from '../../src/lib/office/ser
 import type {ImageProviderDraft} from '../../src/lib/office/types';
 const png='iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWNQCv2vFPqfAUIBACWCBdkiTiprAAAAAElFTkSuQmCC';
 let directory:string;
-beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'office-images-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const n of ['QWEN_IMAGE_KEY','QWEN_IMAGE_MODEL','QWEN_IMAGE_BASE_URL'])vi.stubEnv(n,'');for(const n of ['GOOGLE_IMAGEN_KEY','GOOGLE_IMAGEN_MODEL','HF_IMAGE_TOKEN','HF_IMAGE_MODEL','MARKETING_IMAGE_MODEL','MARKETING_IMAGE_KEY','MARKETING_AI_KEY','OPENAI_API_KEY','DESIGN_OPENAI_KEY','OFFICE_ACCESS_TOKEN'])vi.stubEnv(n,'');});
+beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'office-images-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const n of ['COMFY_IMAGE_KEY','COMFY_IMAGE_BASE_URL','COMFY_IMAGE_MODEL','COMFY_VIDEO_KEY','COMFY_VIDEO_BASE_URL','COMFY_VIDEO_MODEL'])vi.stubEnv(n,'');for(const n of ['QWEN_IMAGE_KEY','QWEN_IMAGE_MODEL','QWEN_IMAGE_BASE_URL'])vi.stubEnv(n,'');for(const n of ['GOOGLE_IMAGEN_KEY','GOOGLE_IMAGEN_MODEL','HF_IMAGE_TOKEN','HF_IMAGE_MODEL','MARKETING_IMAGE_MODEL','MARKETING_IMAGE_KEY','MARKETING_AI_KEY','OPENAI_API_KEY','DESIGN_OPENAI_KEY','OFFICE_ACCESS_TOKEN'])vi.stubEnv(n,'');});
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllGlobals();vi.unstubAllEnvs();vi.restoreAllMocks();});
 const save=(settings:ImageProviderDraft)=>performAction({type:'saveImageProvider',settings});
 const imagen={provider:'imagen',model:'imagen-3.0-generate-002',aspectRatio:'4:5',apiKey:'fake-google-image-secret'} as const;

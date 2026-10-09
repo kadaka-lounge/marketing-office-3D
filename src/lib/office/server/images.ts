@@ -1,12 +1,13 @@
 import sharp from 'sharp';
 import {InferenceClient} from '@huggingface/inference';
+import {requestComfyMedia} from './comfyui';
 import {imageConnection} from './backend';
 import {OfficeError} from './validation';
 import {isLocalEndpoint} from '../endpoints';
 import type {ImageAspectRatio} from '../types';
 const MAX_BYTES=32*1024*1024;
 const DIMENSIONS:Record<ImageAspectRatio,[number,number]>={'1:1':[1024,1024],'4:5':[768,960],'9:16':[576,1024],'16:9':[1024,576]};
-export const IMAGE_LABELS={openai:'GPT Image',imagen:'Google Imagen',huggingface:'Hugging Face FLUX.1',qwen:'Qwen Image GGUF'};
+export const IMAGE_LABELS={openai:'GPT Image',imagen:'Google Imagen',huggingface:'Hugging Face FLUX.1',qwen:'Qwen Image GGUF',comfyui:'ComfyUI Qwen GGUF'};
 async function boundedBytes(response:Response,limit=MAX_BYTES){
  if(Number(response.headers.get('content-length'))>limit)throw new OfficeError('Respons gambar terlalu besar.',502);
  const reader=response.body?.getReader();if(!reader)throw new OfficeError('Respons gambar kosong.',502);
@@ -49,9 +50,9 @@ async function hfImageBytes(payload:Record<string,unknown>,signal:AbortSignal){
  return boundedBytes(await fetchAPI(url,{method:'GET'},signal));
 }
 export async function requestConfiguredImage(prompt:string):Promise<Buffer>{
- const c=imageConnection();const label=IMAGE_LABELS[c.provider];if(!c.key&&(c.provider!=='qwen'||!c.local))throw new OfficeError(`${label} belum dikonfigurasi. Simpan kunci pada Backend & API → Model Gambar.`,409);
+ const c=imageConnection();const label=IMAGE_LABELS[c.provider];if(!c.key&&(!['qwen','comfyui'].includes(c.provider)||!c.local))throw new OfficeError(`${label} belum dikonfigurasi. Simpan kunci pada Backend & API → Model Gambar.`,409);
  const key=c.key||'';const signal=AbortSignal.timeout(c.provider==='qwen'?600000:180000);const [width,height]=DIMENSIONS[c.aspectRatio];let bytes:Buffer;
- if(c.provider==='qwen'){
+ if(c.provider==='comfyui'){bytes=await requestComfyMedia(c,prompt,'image');}else if(c.provider==='qwen'){
   const response=await fetchAPI(`${c.baseUrl}/images/generations`,{method:'POST',headers:{'Content-Type':'application/json',...(c.key?{Authorization:`Bearer ${c.key}`}:{})},body:JSON.stringify({model:c.model,prompt:prompt.slice(0,12000),n:1,size:`${width}x${height}`,response_format:'b64_json',output_format:'png'})},signal,true);
   const body=await readJSON(response);bytes=decodeBase64(body?.data?.[0]?.b64_json);
  }else if(c.provider==='huggingface'){

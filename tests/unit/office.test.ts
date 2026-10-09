@@ -13,7 +13,7 @@ const schedule={type:'schedule',campaignId,channels:['Instagram','TikTok'],sched
 async function runDemo(){return (await performAction({type:'runCampaign',campaignId,mode:'demo'})).state;}
 async function approveAll(){for(const a of readState().artifacts)await performAction({type:'approveArtifact',artifactId:a.id});}
 beforeEach(()=>{
- directory=mkdtempSync(path.join(tmpdir(),'kadaka-unit-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const n of ['QWEN_IMAGE_KEY','QWEN_IMAGE_MODEL','QWEN_IMAGE_BASE_URL'])vi.stubEnv(n,'');
+ directory=mkdtempSync(path.join(tmpdir(),'kadaka-unit-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const n of ['COMFY_IMAGE_KEY','COMFY_IMAGE_BASE_URL','COMFY_IMAGE_MODEL','COMFY_VIDEO_KEY','COMFY_VIDEO_BASE_URL','COMFY_VIDEO_MODEL'])vi.stubEnv(n,'');for(const n of ['QWEN_IMAGE_KEY','QWEN_IMAGE_MODEL','QWEN_IMAGE_BASE_URL'])vi.stubEnv(n,'');
  for(const name of ['GOOGLE_IMAGEN_KEY','GOOGLE_IMAGEN_MODEL','HF_IMAGE_TOKEN','HF_IMAGE_MODEL','MARKETING_IMAGE_MODEL','TIKTOK_ACCESS_TOKEN','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_IMAGE_KEY','OFFICE_ACCESS_TOKEN','MARKETING_AI_BASE_URL','MARKETING_PUBLISH_URL','MARKETING_PUBLISH_TOKEN'])vi.stubEnv(name,'');
 });
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});

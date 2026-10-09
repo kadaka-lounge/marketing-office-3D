@@ -1,5 +1,6 @@
 import {setTimeout as delay} from 'node:timers/promises';
 import {createFile,MP4BoxBuffer} from 'mp4box';
+import {requestComfyMedia,checkComfyConnection} from './comfyui';
 import {videoConnection} from './backend';
 import {OfficeError} from './validation';
 const ROUTER='https://router.huggingface.co/fal-ai';
@@ -44,8 +45,15 @@ function assetURL(value:unknown){
  let url:URL;try{url=new URL(value);}catch{throw new OfficeError('URL video tidak valid.',502);}
  if(url.protocol!=='https:'||url.username||url.password||!['fal.media','huggingface.co','hf.co'].some(host=>url.hostname===host||url.hostname.endsWith(`.${host}`)))throw new OfficeError('Host aset video tidak didukung.',502);return url.href;
 }
+export function stripVideoMetadata(input:Buffer){
+ const bytes=Buffer.from(input);let count=0;const containers=new Set(['moov','trak','mdia','minf','stbl','edts','mvex','moof','traf']);
+ function walk(start:number,end:number,depth=0){if(depth>32)throw new OfficeError('Struktur MP4 terlalu dalam.',502);let position=start;while(position<end){if(++count>100000||position+8>end)throw new OfficeError('Struktur MP4 tidak valid.',502);let size=bytes.readUInt32BE(position);let header=8;const type=bytes.toString('ascii',position+4,position+8);if(size===1){if(position+16>end)throw new OfficeError('Struktur MP4 tidak valid.',502);const large=bytes.readBigUInt64BE(position+8);if(large>BigInt(end-position))throw new OfficeError('Struktur MP4 tidak valid.',502);size=Number(large);header=16;}if(!size)size=end-position;if(size<header||position+size>end)throw new OfficeError('Struktur MP4 tidak valid.',502);
+  // Keep box sizes/offsets stable so media samples remain unchanged.
+  if(['udta','meta','uuid'].includes(type)){bytes.write('free',position+4,'ascii');bytes.fill(0,position+header,position+size);}else if(containers.has(type))walk(position+header,position+size,depth+1);position+=size;}}
+ walk(0,bytes.length);return bytes;
+}
 export async function requestVideo(prompt:string){
- const c=videoConnection();if(!c.key)throw new OfficeError('Video Hugging Face belum dikonfigurasi. Buka Backend & API → Model Video.',409);
+ const c=videoConnection();if(c.provider==='comfyui'){const bytes=stripVideoMetadata(await requestComfyMedia(c,prompt,'video'));validateMP4(bytes);return bytes;}if(!c.key)throw new OfficeError('Video Hugging Face belum dikonfigurasi. Buka Backend & API → Model Video.',409);
  if(!c.key.startsWith('hf_'))throw new OfficeError('Gunakan token Hugging Face yang diawali hf_.',409);
  if(!['Wan-AI/Wan2.2-T2V-A14B','Wan-AI/Wan2.1-T2V-14B'].includes(c.model))throw new OfficeError('Pilih preset model Wan yang didukung.',409);
  const signal=AbortSignal.timeout(8*60*1000);const headers={Authorization:`Bearer ${c.key}`,'Content-Type':'application/json'};
@@ -65,7 +73,7 @@ export async function requestVideo(prompt:string){
  validateMP4(bytes);return bytes;
 }
 export async function testVideoProvider(){
- const c=videoConnection();if(!c.key)throw new OfficeError('Token video Hugging Face belum dikonfigurasi.',409);
+ const c=videoConnection();if(c.provider==='comfyui')return {...await checkComfyConnection(c),provider:c.provider,model:c.model};if(!c.key)throw new OfficeError('Token video Hugging Face belum dikonfigurasi.',409);
  if(!c.key.startsWith('hf_'))throw new OfficeError('Gunakan token Hugging Face yang diawali hf_.',409);
  const signal=AbortSignal.timeout(15000);
  await json(await api('https://huggingface.co/api/whoami-v2',{headers:{Authorization:`Bearer ${c.key}`}},signal));

@@ -9,7 +9,7 @@ import {generateOutput,taskConnection,testProviderConnection,requestImage} from 
 import type {ProviderId} from '../../src/lib/office/types';
 let directory:string;
 const names=['GOOGLE_IMAGEN_KEY','GOOGLE_IMAGEN_MODEL','HF_IMAGE_TOKEN','HF_IMAGE_MODEL','MARKETING_IMAGE_MODEL','TIKTOK_ACCESS_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_AI_BASE_URL','MARKETING_IMAGE_KEY','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN'];
-beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'office-providers-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const n of ['QWEN_IMAGE_KEY','QWEN_IMAGE_MODEL','QWEN_IMAGE_BASE_URL'])vi.stubEnv(n,'');names.forEach(n=>vi.stubEnv(n,''));});
+beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'office-providers-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const n of ['COMFY_IMAGE_KEY','COMFY_IMAGE_BASE_URL','COMFY_IMAGE_MODEL','COMFY_VIDEO_KEY','COMFY_VIDEO_BASE_URL','COMFY_VIDEO_MODEL'])vi.stubEnv(n,'');for(const n of ['QWEN_IMAGE_KEY','QWEN_IMAGE_MODEL','QWEN_IMAGE_BASE_URL'])vi.stubEnv(n,'');names.forEach(n=>vi.stubEnv(n,''));});
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllGlobals();vi.unstubAllEnvs();vi.restoreAllMocks();});
 async function save(provider:ProviderId,apiKey=`fake-${provider}-secret`,enabled=true){await performAction({type:'saveProvider',provider,settings:{enabled,model:provider==='gemini'?'gemini-2.5-flash':'test-model',apiKey}});}
 it('encrypts separate keys, preserves global and profile settings in both directions, and excludes secrets from responses/exports',async()=>{
