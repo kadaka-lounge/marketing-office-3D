@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Artifact, OfficeAction, OfficeResponse, OfficeState, Task } from '../types';
 import { DIVISIONS } from '../catalog';
-import {saveBackend,saveProvider,saveMeta} from './backend';
+import {saveBackend,saveProvider,saveMeta,saveTikTok} from './backend';
 import { addCampaign, addMessage, artifactById, artifactForTask, assertOfficeIdle, assertUnlocked, campaignById, dataDirectory, invalidate, lockCampaign, mutate, now, readState, readyForPublication, renewCampaignLock, taskArtifactType, taskById, taskForAgent, uid, unlockCampaign } from './store';
 import { generateOutput, officeConfig, requestImage, requireAI, sendPublication } from './providers';
+import {initializeTikTokPost,validateTikTokPost,tiktokPostStatus,TikTokRejected,type TikTokPost} from './tiktok';
 import { OfficeError, parseAction } from './validation';
 
 export function getOffice(): OfficeResponse { return { state: readState(), config: officeConfig() }; }
@@ -89,6 +90,7 @@ async function publish(publicationId: string) {
   const existing = readState().publications.find(p => p.id === publicationId);
   if (!existing) throw new OfficeError('Jadwal publikasi tidak ditemukan.', 404);
   if (existing.status === 'published') return;
+  if(existing.tiktok)throw new OfficeError('Pengiriman TikTok sudah dimulai. Gunakan Periksa status TikTok.',409);
   const token = lockCampaign(existing.campaignId);
   try {
     const state = readState();
@@ -131,6 +133,9 @@ export async function performAction(value: unknown): Promise<OfficeResponse> {
   const action: OfficeAction = parseAction(value);
   switch (action.type) {
     case 'saveProvider': assertOfficeIdle(); saveProvider(action.provider,action.settings); mutate(()=>{}); break;
+    case 'saveTikTok': assertOfficeIdle(); saveTikTok(action.settings); mutate(()=>{}); break;
+    case 'publishTikTok': await publishTikTok(action); break;
+    case 'checkTikTok': await checkTikTok(action.publicationId); break;
     case 'saveMeta': assertOfficeIdle(); saveMeta(action.settings); mutate(()=>{}); break;
     case 'saveBackend': assertOfficeIdle(); saveBackend(action.backend); mutate(() => {}); break;
     case 'addAgent': mutate(state => {
@@ -222,4 +227,34 @@ export async function performAction(value: unknown): Promise<OfficeResponse> {
     }); break;
   }
   return getOffice();
+}
+
+async function publishTikTok(post:TikTokPost){
+ const existing=readState().publications.find(p=>p.id===post.publicationId);
+ if(!existing||existing.channel!=='TikTok')throw new OfficeError('Pilih jadwal TikTok yang valid.',404);
+ if(existing.status==='published'||existing.tiktok)throw new OfficeError('Pengiriman sudah dicatat. Periksa status TikTok; jangan kirim ulang.',409);
+ const token=lockCampaign(existing.campaignId);
+ try{
+  if(!readyForPublication(readState(),existing.campaignId))throw new OfficeError('Seluruh hasil terbaru wajib disetujui manager sebelum publikasi.',409);
+  if(new Date(existing.scheduledAt).getTime()>Date.now())throw new OfficeError('Waktu jadwal belum tiba.',409);
+  const creator=await validateTikTokPost(post);
+  mutate(state=>{const p=state.publications.find(p=>p.id===post.publicationId)!;p.status='processing';p.tiktok={attemptedAt:now()};delete p.error;});
+  try{
+   const publishId=await initializeTikTokPost(post,creator);
+   mutate(state=>{state.publications.find(p=>p.id===post.publicationId)!.tiktok!.publishId=publishId;addMessage(state,{channel:'publisher',campaignId:existing.campaignId,senderId:'kai',content:`Video diterima untuk diproses TikTok (@${creator.creator_username}). Belum dikonfirmasi tayang. Periksa status pengiriman.`});});
+  }catch(error){
+   mutate(state=>{const p=state.publications.find(p=>p.id===post.publicationId)!;p.error=error instanceof OfficeError?error.message:'Status pengiriman belum dapat dipastikan. Periksa akun TikTok.';if(error instanceof TikTokRejected){p.status='failed';delete p.tiktok;}});
+   throw error;
+  }
+ }finally{unlockCampaign(existing.campaignId,token);}
+}
+async function checkTikTok(publicationId:string){
+ const existing=readState().publications.find(p=>p.id===publicationId);
+ if(!existing?.tiktok?.publishId)throw new OfficeError('ID TikTok belum tersedia. Periksa akun TikTok jika koneksi terputus saat mengirim; jangan mengirim ulang otomatis.',409);
+ if(existing.status==='published')return;
+ const token=lockCampaign(existing.campaignId);
+ try{
+  const status=await tiktokPostStatus(existing.tiktok.publishId);
+  mutate(state=>{const p=state.publications.find(p=>p.id===publicationId)!;if(status==='PUBLISH_COMPLETE'){p.status='published';p.publishedAt=now();delete p.error;addMessage(state,{channel:'general',campaignId:existing.campaignId,senderId:'kai',content:'TikTok mengonfirmasi video kampanye telah dipublikasikan.'});}else if(status==='FAILED'){p.status='failed';p.error='TikTok mengonfirmasi pengiriman gagal. Periksa video dan akun sebelum membuat jadwal pengiriman baru.';}else{p.status='processing';delete p.error;}});
+ }finally{unlockCampaign(existing.campaignId,token);}
 }

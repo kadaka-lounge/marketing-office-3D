@@ -268,3 +268,38 @@ test('division API settings persist independent encrypted credentials and fit mo
  await page.screenshot({path:'/tmp/kadaka-division-providers.png',fullPage:true});
  await page.getByTestId('meta-clear').check();await page.getByTestId('meta-save').click();await expect(page.getByTestId('meta-test')).toBeDisabled();
 });
+
+test('Publisher TikTok settings save a private token and expose creator privacy choices',async({page,request})=>{
+ await page.goto('/');await page.getByTestId('tab-backend').click();await page.getByTestId('backend-tab-tiktok').click();
+ await page.getByTestId('tiktok-enabled').check();await page.getByTestId('tiktok-key').fill('fake-browser-tiktok-token');await page.getByTestId('tiktok-save').click();
+ await expect(page.getByTestId('tiktok-key')).toHaveValue('');await expect(page.getByTestId('tiktok-test')).toBeEnabled();
+ const response=await request.get('/api/office');const office=await response.json() as OfficeResponse;expect(office.config.tiktok).toMatchObject({enabled:true,configured:true,keySource:'stored'});expect(JSON.stringify(office)).not.toContain('fake-browser-tiktok-token');
+ await page.route('**/api/office/tiktok/creator',route=>route.fulfill({json:{ok:true,creator:{creator_username:'browser-test',creator_nickname:'Publisher Browser',privacy_level_options:['SELF_ONLY'],comment_disabled:true,duet_disabled:true,stitch_disabled:true,max_video_post_duration_sec:180}}}));
+ await page.getByTestId('tiktok-test').click();await expect(page.getByTestId('tiktok-settings').getByRole('status')).toContainText('@browser-test');
+ await page.reload();await page.getByTestId('tab-backend').click();await page.getByTestId('backend-tab-tiktok').click();await expect(page.getByTestId('tiktok-enabled')).toBeChecked();await expect(page.getByTestId('tiktok-key')).toHaveValue('');
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.locator('.sidebar').evaluate(n=>n.getBoundingClientRect().right)).toBeLessThanOrEqual(0);await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+ await page.screenshot({path:'/tmp/kadaka-tiktok-settings.png',fullPage:true});
+ await page.getByTestId('tiktok-clear').check();await page.getByTestId('tiktok-save').click();await expect(page.getByTestId('tiktok-test')).toBeDisabled();
+});
+
+test('TikTok publication requires creator, privacy, and explicit manager consent',async({page,request})=>{
+ const brief={name:`TikTok review ${Date.now()}`,product:'Verified product',audience:'Local creators',objective:'Awareness',channels:['TikTok'],budget:'',deadline:''};
+ const created=await request.post('/api/office/action',{data:{type:'createCampaign',brief}});expect(created.ok()).toBeTruthy();
+ let office=await created.json() as OfficeResponse;const campaign=office.state.campaigns.find(c=>c.name===brief.name)!;
+ const run=await request.post('/api/office/action',{data:{type:'runCampaign',campaignId:campaign.id,mode:'demo'}});expect(run.ok()).toBeTruthy();office=await run.json() as OfficeResponse;
+ for(const a of office.state.artifacts.filter(a=>a.campaignId===campaign.id)){const r=await request.post('/api/office/action',{data:{type:'approveArtifact',artifactId:a.id}});expect(r.ok()).toBeTruthy();}
+ expect((await request.post('/api/office/action',{data:{type:'saveTikTok',settings:{enabled:true,apiKey:'fake-form-tiktok-token'}}})).ok()).toBeTruthy();
+ const scheduled=await request.post('/api/office/action',{data:{type:'schedule',campaignId:campaign.id,channels:['TikTok'],scheduledAt:new Date(Date.now()+1000).toISOString()}});expect(scheduled.ok()).toBeTruthy();office=await scheduled.json() as OfficeResponse;
+ const publication=office.state.publications.find(p=>p.campaignId===campaign.id)!;
+ await page.route('**/api/office/tiktok/creator',route=>route.fulfill({json:{ok:true,creator:{creator_username:'review-account',creator_nickname:'Review Account',privacy_level_options:['SELF_ONLY'],comment_disabled:true,duet_disabled:true,stitch_disabled:true,max_video_post_duration_sec:180}}}));
+ let submitted:Record<string,unknown>|undefined;
+ await page.route('**/api/office/action',async route=>{const data=route.request().postDataJSON();if(data.type!=='publishTikTok'){await route.continue();return;}submitted=data;const result=structuredClone(office);const p=result.state.publications.find(p=>p.id===publication.id)!;p.status='processing';p.tiktok={attemptedAt:new Date().toISOString(),publishId:'browser-publish-id'};await route.fulfill({json:result});});
+ await page.goto('/');await page.getByTestId('campaign-select').selectOption(campaign.id);await page.getByTestId('tab-deliverables').click();
+ await page.getByTestId('tiktok-load-creator').click();await expect(page.getByTestId('tiktok-publish-form')).toContainText('@review-account');
+ await expect(page.getByTestId('tiktok-privacy')).toHaveValue('');await expect(page.getByTestId('tiktok-submit')).toBeDisabled();
+ await page.getByTestId('tiktok-video-url').fill('https://verified.example/final.mp4');await page.getByTestId('tiktok-title').fill('Manager approved caption');await page.getByTestId('tiktok-privacy').selectOption('SELF_ONLY');await expect(page.getByTestId('tiktok-submit')).toBeDisabled();
+ await page.getByTestId('tiktok-consent').check();await page.getByTestId('tiktok-submit').click();await expect.poll(()=>submitted?.type).toBe('publishTikTok');expect(submitted).toMatchObject({publicationId:publication.id,title:'Manager approved caption',privacyLevel:'SELF_ONLY',consent:true});
+ await expect(page.getByText('Periksa status TikTok',{exact:true})).toBeVisible();
+ // Browser fixture only; the server-side native/persistence behavior is tested with mocked TikTok responses in unit tests.
+ await request.post('/api/office/action',{data:{type:'saveTikTok',settings:{enabled:false,clearKey:true}}});
+});

@@ -8,7 +8,7 @@ import {backendConnection,providerConnection,metaConnection} from '../../src/lib
 import {generateOutput,taskConnection,testProviderConnection,requestImage} from '../../src/lib/office/server/providers';
 import type {ProviderId} from '../../src/lib/office/types';
 let directory:string;
-const names=['MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_AI_BASE_URL','MARKETING_IMAGE_KEY','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN'];
+const names=['TIKTOK_ACCESS_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_AI_BASE_URL','MARKETING_IMAGE_KEY','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN'];
 beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'office-providers-'));vi.stubEnv('OFFICE_DATA_DIR',directory);names.forEach(n=>vi.stubEnv(n,''));});
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllGlobals();vi.unstubAllEnvs();vi.restoreAllMocks();});
 async function save(provider:ProviderId,apiKey=`fake-${provider}-secret`,enabled=true){await performAction({type:'saveProvider',provider,settings:{enabled,model:provider==='gemini'?'gemini-2.5-flash':'test-model',apiKey}});}

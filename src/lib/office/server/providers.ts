@@ -1,7 +1,7 @@
 import type { Campaign, OfficeConfig, OfficeState, Task, ProviderId } from '../types';
 import { agentForTask, artifactForTask } from './store';
 import { OfficeError } from './validation';
-import {backendConnection,providerConnection,metaConnection} from './backend';
+import {backendConnection,providerConnection,metaConnection,tiktokConnection} from './backend';
 import {isLocalEndpoint} from '../endpoints';
 
 const defaultBase = 'https://api.openai.com/v1';
@@ -14,8 +14,8 @@ export function officeConfig(): OfficeConfig {
   const local=isLocalEndpoint(baseUrl());
   if(local){const port=new URL(baseUrl()).port;provider=port==='11434'?'Ollama (lokal)':port==='1234'?'LM Studio (lokal)':'LLM lokal';}
   const providers=(['claude','gemini','openai'] as const).map(id=>{const c=providerConnection(id);return {provider:id,model:c.model,enabled:c.enabled,configured:Boolean(c.key),keySource:c.keySource};});
-  const meta=metaConnection();const defaultAIConfigured=local||Boolean(aiKey());
-  return { defaultAIConfigured,providers,meta:{enabled:meta.enabled,configured:Boolean(meta.key),keySource:meta.keySource},aiConfigured: defaultAIConfigured||providers.some(p=>p.enabled&&p.configured), aiProvider: provider, aiModel: backendConnection().model, aiBaseUrl:baseUrl(), aiLocal:local, aiKeySource:backendConnection().keySource, imageConfigured: Boolean(imageKey()), publisherConfigured: Boolean(process.env.MARKETING_PUBLISH_URL && process.env.MARKETING_PUBLISH_TOKEN), accessProtected: Boolean(process.env.OFFICE_ACCESS_TOKEN) };
+  const meta=metaConnection();const tiktok=tiktokConnection();const defaultAIConfigured=local||Boolean(aiKey());
+  return { tiktok:{enabled:tiktok.enabled,configured:Boolean(tiktok.key),keySource:tiktok.keySource},defaultAIConfigured,providers,meta:{enabled:meta.enabled,configured:Boolean(meta.key),keySource:meta.keySource},aiConfigured: defaultAIConfigured||providers.some(p=>p.enabled&&p.configured), aiProvider: provider, aiModel: backendConnection().model, aiBaseUrl:baseUrl(), aiLocal:local, aiKeySource:backendConnection().keySource, imageConfigured: Boolean(imageKey()), publisherConfigured: Boolean(process.env.MARKETING_PUBLISH_URL && process.env.MARKETING_PUBLISH_TOKEN), accessProtected: Boolean(process.env.OFFICE_ACCESS_TOKEN) };
 }
 export function taskConnection(task?:Task){
   if(task?.division==='analytics'&&providerConnection('claude').enabled)return providerConnection('claude');

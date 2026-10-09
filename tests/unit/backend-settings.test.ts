@@ -11,7 +11,7 @@ import type {AgentDraft} from '../../src/lib/office/types';
 let directory:string;
 const baseUrl='https://api.openai.com/v1';
 const agent:AgentDraft={name:'Sora',role:'SEO Specialist',division:'marketing',avatarIndex:2,instructions:'Prioritaskan audiens lokal.',skills:[{name:'SEO Strategy',instructions:'Susun keyword intent dan content brief. Jangan mengarang volume pencarian.'}]};
-beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'kadaka-backend-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const k of ['CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_IMAGE_KEY','MARKETING_AI_BASE_URL','MARKETING_AI_MODEL','OFFICE_ACCESS_TOKEN'])vi.stubEnv(k,'');});
+beforeEach(()=>{directory=mkdtempSync(path.join(tmpdir(),'kadaka-backend-'));vi.stubEnv('OFFICE_DATA_DIR',directory);for(const k of ['TIKTOK_ACCESS_TOKEN','CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_IMAGE_KEY','MARKETING_AI_BASE_URL','MARKETING_AI_MODEL','OFFICE_ACCESS_TOKEN'])vi.stubEnv(k,'');});
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 async function save(backend:{baseUrl:string;model:string;apiKey?:string;clearKey?:boolean}){return performAction({type:'saveBackend',backend});}
 async function add(attach=false){await performAction({type:'addAgent',agent,...(attach?{campaignId:'campaign-kadaka'}:{})});return readState().agents.find(a=>a.name===agent.name)!;}

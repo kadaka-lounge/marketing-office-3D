@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 const config: NextConfig = {
   devIndicators: false,
+  outputFileTracingExcludes: {'/*':['./.data/**/*','./.env*','./**/backend.key','./**/backend.json']},
   serverExternalPackages: ['node:sqlite'],
   async headers() {
     return [{source: '/:path*', headers: [

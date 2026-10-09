@@ -8,7 +8,7 @@ import {normalizeAIBaseUrl} from '../endpoints';
 
 const OPENAI='https://api.openai.com/v1';
 interface StoredProfile {model?:string;enabled:boolean;secret?:string;disableEnvironmentKey?:boolean;}
-interface StoredBackend {profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
+interface StoredBackend {profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;tiktok?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
 export function environmentBaseUrl(){return normalizeAIBaseUrl(process.env.MARKETING_AI_BASE_URL||OPENAI);}
 function readStored():StoredBackend|undefined {
  try{return JSON.parse(readFileSync(path.join(dataDirectory(),'backend.json'),'utf8'));}
@@ -72,3 +72,6 @@ function updatedProfile(previous:StoredProfile|undefined,input:ProviderDraft|Met
 function storedOrDefault():StoredBackend{return readStored()||{baseUrl:environmentBaseUrl(),model:backendConnection().model};}
 export function saveProvider(provider:ProviderId,input:ProviderDraft){const next=storedOrDefault();next.profiles={...next.profiles,[provider]:updatedProfile(next.profiles?.[provider],input)};writeStored(next);}
 export function saveMeta(input:MetaDraft){const next=storedOrDefault();next.meta=updatedProfile(next.meta,input);writeStored(next);}
+
+export function tiktokConnection(){const profile=readStored()?.tiktok;const connection=profileKey(profile,'TIKTOK_ACCESS_TOKEN');return {enabled:profile?.enabled??Boolean(connection.key),...connection};}
+export function saveTikTok(input:MetaDraft){const next=storedOrDefault();next.tiktok=updatedProfile(next.tiktok,input);writeStored(next);}

@@ -13,6 +13,9 @@ const credential = { enabled:z.boolean(), apiKey:z.string().trim().max(4096).ref
 const providerSettings = z.object({...credential,model:text(160).regex(/^[a-zA-Z0-9._:-]+$/,'Gunakan ID model provider tanpa slash atau spasi.')}).strict();
 export const actionSchema = z.discriminatedUnion('type', [
   z.object({type:z.literal('saveProvider'),provider:z.enum(['claude','gemini','openai']),settings:providerSettings}).strict(),
+  z.object({type:z.literal('saveTikTok'),settings:z.object(credential).strict()}).strict(),
+  z.object({type:z.literal('checkTikTok'),publicationId:id}).strict(),
+  z.object({type:z.literal('publishTikTok'),publicationId:id,videoUrl:z.string().url().max(2000).refine(v=>{try{const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password&&!u.hash;}catch{return false;}},'Gunakan URL video HTTPS tanpa kredensial atau fragment.'),title:text(2200),privacyLevel:z.enum(['PUBLIC_TO_EVERYONE','MUTUAL_FOLLOW_FRIENDS','FOLLOWER_OF_CREATOR','SELF_ONLY']),consent:z.literal(true),disableComment:z.boolean(),disableDuet:z.boolean(),disableStitch:z.boolean(),brandOrganic:z.boolean(),brandContent:z.boolean()}).strict(),
   z.object({type:z.literal('saveMeta'),settings:z.object(credential).strict()}).strict(),
   z.object({ type: z.literal('saveBackend'), backend: backendSchema }).strict(),
   z.object({ type: z.literal('addAgent'), agent: agentDraft, campaignId: id.optional() }).strict(),

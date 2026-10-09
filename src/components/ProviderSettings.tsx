@@ -42,7 +42,7 @@ function CredentialCard({provider,config,busy,action}:Props&{provider:ProviderId
   <label className="backend-checkbox"><input type="checkbox" data-testid={`${provider}-clear`} checked={clearKey} onChange={e=>{setClearKey(e.target.checked);if(e.target.checked)setApiKey('');}}/>Hapus kunci dan nonaktifkan kunci environment</label>
   <div className="backend-key-state"><ShieldCheck size={14}/>{status.keySource==='stored'?'Kunci terenkripsi tersimpan':status.keySource==='environment'?'Kunci dari environment':'Belum ada kunci'}</div>
   <p className="backend-footnote">Endpoint tetap: {info.endpoint}</p>
-  {meta&&<p className="backend-footnote">Publikasi tetap melalui ekspor manual atau webhook Publisher dengan tindakan Marketing Manager. Token ini tidak mengaktifkan publikasi langsung. TikTok membutuhkan integrasi terpisah.</p>}
+  {meta&&<p className="backend-footnote">Publikasi tetap melalui ekspor manual atau webhook Publisher dengan tindakan Marketing Manager. Token ini tidak mengaktifkan publikasi langsung. Atur koneksi TikTok melalui tab Publisher TikTok.</p>}
   {error&&<p className="backend-error" role="alert">{error}</p>}{message&&<p className="backend-success" role="status"><Check size={15}/>{message}</p>}
   <div className="backend-actions"><button className="button secondary" data-testid={`${provider}-test`} type="button" onClick={()=>void test()} disabled={busy||testing||!status.enabled||!status.configured}><Sparkles size={15}/>{testing?'Menguji…':'Uji koneksi tersimpan'}</button><button className="button primary" data-testid={`${provider}-save`} type="submit" disabled={busy||testing}><Save size={15}/>Simpan {meta?'token':'provider'}</button></div>
  </form>;

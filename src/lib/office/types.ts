@@ -14,14 +14,17 @@ export interface Campaign extends Brief { id: string; status: 'draft' | 'working
 export interface Task { id: string; campaignId: string; title: string; division: DivisionId; agentId: string; instructions: string; dependencies: string[]; status: 'pending' | 'running' | 'review' | 'approved' | 'revision' | 'failed'; error?: string; }
 export interface Message { id: string; campaignId?: string; channel: DivisionId | 'general'; senderId: string; content: string; createdAt: string; taskId?: string; }
 export interface Artifact { id: string; campaignId: string; taskId: string; title: string; content: string; type: 'analysis' | 'strategy' | 'copy' | 'design' | 'publication'; version: number; status: 'review' | 'approved' | 'revision'; mode: 'demo' | 'live' | 'manual'; createdAt: string; imageUrl?: string; }
-export interface Publication { id: string; campaignId: string; channel: string; scheduledAt: string; status: 'scheduled' | 'exported' | 'published' | 'failed'; error?: string; publishedAt?: string; }
+export interface Publication { id: string; campaignId: string; channel: string; scheduledAt: string; status: 'scheduled' | 'exported' | 'published' | 'failed' | 'processing'; tiktok?:{attemptedAt:string;publishId?:string}; error?: string; publishedAt?: string; }
 export interface AgentRun { id: string; taskId: string; agentId: string; mode: 'demo' | 'live'; status: 'running' | 'completed' | 'failed'; startedAt: string; completedAt?: string; error?: string; }
 export interface Metric { id: string; campaignId: string; channel: string; impressions: number; clicks: number; conversions: number; spend: number; recordedAt: string; }
 export interface OfficeState { agents: Agent[]; campaigns: Campaign[]; tasks: Task[]; messages: Message[]; artifacts: Artifact[]; publications: Publication[]; runs: AgentRun[]; metrics: Metric[]; revision: number; }
-export interface OfficeConfig { aiConfigured: boolean; defaultAIConfigured:boolean; providers:ProviderStatus[]; meta:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; aiProvider: string; aiModel: string; imageConfigured: boolean; publisherConfigured: boolean; accessProtected: boolean; aiBaseUrl: string; aiLocal:boolean; aiKeySource: 'environment' | 'stored' | 'none'; }
+export interface OfficeConfig { aiConfigured: boolean; defaultAIConfigured:boolean; providers:ProviderStatus[]; tiktok:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; meta:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; aiProvider: string; aiModel: string; imageConfigured: boolean; publisherConfigured: boolean; accessProtected: boolean; aiBaseUrl: string; aiLocal:boolean; aiKeySource: 'environment' | 'stored' | 'none'; }
 export interface OfficeResponse { state: OfficeState; config: OfficeConfig; }
 export type OfficeAction =
  | { type:'saveProvider'; provider:ProviderId; settings:ProviderDraft }
+ | { type:'saveTikTok'; settings:MetaDraft }
+ | { type:'publishTikTok'; publicationId:string; videoUrl:string; title:string; privacyLevel:string; consent:true; disableComment:boolean; disableDuet:boolean; disableStitch:boolean; brandOrganic:boolean; brandContent:boolean }
+ | { type:'checkTikTok'; publicationId:string }
  | { type:'saveMeta'; settings:MetaDraft }
  | { type:'saveBackend'; backend:BackendDraft }
  | { type:'addAgent'; agent:AgentDraft; campaignId?:string }

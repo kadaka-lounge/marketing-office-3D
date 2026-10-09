@@ -8,7 +8,8 @@ import { OfficeError } from './validation';
 
 export const now = () => new Date().toISOString();
 export const uid = (prefix: string) => `${prefix}-${randomUUID()}`;
-export const dataDirectory = () => path.resolve(process.env.OFFICE_DATA_DIR || path.join(process.cwd(), '.data'));
+// Runtime state and encryption keys are provisioned separately, never bundled for deployment.
+export const dataDirectory = () => path.resolve(/* turbopackIgnore: true */ process.env.OFFICE_DATA_DIR || path.join(process.cwd(), '.data'));
 const databases = new Map<string, DatabaseSync>();
 export const taskTemplates = [
   { agentId: 'atlas', title: 'Riset audiens & hipotesis pasar', instructions: 'Analisis brief, segmen audiens, masalah pelanggan, posisi produk, dan hipotesis yang perlu divalidasi. Jangan mengklaim riset eksternal atau angka hasil tanpa data.', type: 'analysis' },
@@ -124,7 +125,7 @@ export function invalidate(state: OfficeState, taskId: string, includeRoot = tru
     const task = taskById(state, id); task.status = 'revision'; delete task.error;
     const artifact = artifactForTask(state, id); if (artifact) artifact.status = 'revision';
   }
-  state.publications = state.publications.filter(p => p.campaignId !== root.campaignId || p.status === 'published');
+  state.publications = state.publications.filter(p => p.campaignId !== root.campaignId || p.status === 'published' || Boolean(p.tiktok));
 }
 function refreshStatus(state: OfficeState) {
   for (const campaign of state.campaigns) {
