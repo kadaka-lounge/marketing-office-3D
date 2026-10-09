@@ -6,6 +6,9 @@ export type ImageProviderId='openai'|'imagen'|'huggingface';
 export type ImageAspectRatio='1:1'|'4:5'|'9:16'|'16:9';
 export interface ImageProviderDraft {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;apiKey?:string;clearKey?:boolean;}
 export interface ImageProviderStatus {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;configured:boolean;keySource:'stored'|'environment'|'none'|'shared';}
+export type VideoAspectRatio='16:9'|'9:16'|'1:1';
+export interface VideoProviderDraft {model:string;aspectRatio:VideoAspectRatio;apiKey?:string;clearKey?:boolean;}
+export interface VideoProviderStatus {provider:'huggingface';model:string;aspectRatio:VideoAspectRatio;configured:boolean;keySource:'stored'|'environment'|'none';}
 export type ProviderId = 'claude' | 'gemini' | 'openai';
 export interface ProviderDraft { model:string; enabled:boolean; apiKey?:string; clearKey?:boolean; }
 export interface MetaDraft { enabled:boolean; apiKey?:string; clearKey?:boolean; }
@@ -17,14 +20,16 @@ export interface Brief { name: string; product: string; audience: string; object
 export interface Campaign extends Brief { id: string; status: 'draft' | 'working' | 'review' | 'approved' | 'scheduled'; createdAt: string; }
 export interface Task { id: string; campaignId: string; title: string; division: DivisionId; agentId: string; instructions: string; dependencies: string[]; status: 'pending' | 'running' | 'review' | 'approved' | 'revision' | 'failed'; error?: string; }
 export interface Message { id: string; campaignId?: string; channel: DivisionId | 'general'; senderId: string; content: string; createdAt: string; taskId?: string; }
-export interface Artifact { id: string; campaignId: string; taskId: string; title: string; content: string; type: 'analysis' | 'strategy' | 'copy' | 'design' | 'publication'; version: number; status: 'review' | 'approved' | 'revision'; mode: 'demo' | 'live' | 'manual'; createdAt: string; imageUrl?: string; }
+export interface Artifact { id: string; campaignId: string; taskId: string; title: string; content: string; type: 'analysis' | 'strategy' | 'copy' | 'design' | 'publication'; version: number; status: 'review' | 'approved' | 'revision'; mode: 'demo' | 'live' | 'manual'; createdAt: string; imageUrl?: string; videoUrl?:string; }
 export interface Publication { id: string; campaignId: string; channel: string; scheduledAt: string; status: 'scheduled' | 'exported' | 'published' | 'failed' | 'processing'; tiktok?:{attemptedAt:string;publishId?:string}; error?: string; publishedAt?: string; }
 export interface AgentRun { id: string; taskId: string; agentId: string; mode: 'demo' | 'live'; status: 'running' | 'completed' | 'failed'; startedAt: string; completedAt?: string; error?: string; }
 export interface Metric { id: string; campaignId: string; channel: string; impressions: number; clicks: number; conversions: number; spend: number; recordedAt: string; }
 export interface OfficeState { agents: Agent[]; campaigns: Campaign[]; tasks: Task[]; messages: Message[]; artifacts: Artifact[]; publications: Publication[]; runs: AgentRun[]; metrics: Metric[]; revision: number; }
-export interface OfficeConfig { aiConfigured: boolean; defaultAIConfigured:boolean; providers:ProviderStatus[]; tiktok:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; meta:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; aiProvider: string; aiModel: string; imageConfigured: boolean; imageProvider:ImageProviderId; imageModel:string; imageProviders:ImageProviderStatus[]; publisherConfigured: boolean; accessProtected: boolean; aiBaseUrl: string; aiLocal:boolean; aiKeySource: 'environment' | 'stored' | 'none'; }
+export interface OfficeConfig { video:VideoProviderStatus; aiConfigured: boolean; defaultAIConfigured:boolean; providers:ProviderStatus[]; tiktok:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; meta:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; aiProvider: string; aiModel: string; imageConfigured: boolean; imageProvider:ImageProviderId; imageModel:string; imageProviders:ImageProviderStatus[]; publisherConfigured: boolean; accessProtected: boolean; aiBaseUrl: string; aiLocal:boolean; aiKeySource: 'environment' | 'stored' | 'none'; }
 export interface OfficeResponse { state: OfficeState; config: OfficeConfig; }
 export type OfficeAction =
+ | {type:'saveVideoProvider';settings:VideoProviderDraft}
+ | {type:'generateVideo';artifactId:string}
  | {type:'saveImageProvider';settings:ImageProviderDraft}
  | { type:'saveProvider'; provider:ProviderId; settings:ProviderDraft }
  | { type:'saveTikTok'; settings:MetaDraft }

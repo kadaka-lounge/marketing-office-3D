@@ -3,13 +3,13 @@ import {readFileSync,writeFileSync,mkdirSync,renameSync} from 'node:fs';
 import path from 'node:path';
 import {dataDirectory} from './store';
 import {OfficeError} from './validation';
-import type {BackendDraft,ProviderDraft,ProviderId,MetaDraft,ImageProviderDraft,ImageProviderId,ImageAspectRatio} from '../types';
+import type {BackendDraft,ProviderDraft,ProviderId,MetaDraft,ImageProviderDraft,ImageProviderId,ImageAspectRatio,VideoProviderDraft,VideoAspectRatio} from '../types';
 import {normalizeAIBaseUrl} from '../endpoints';
 
 const OPENAI='https://api.openai.com/v1';
 interface StoredProfile {model?:string;enabled:boolean;secret?:string;disableEnvironmentKey?:boolean;}
 interface StoredImage extends StoredProfile {aspectRatio:ImageAspectRatio;}
-interface StoredBackend {images?:Partial<Record<ImageProviderId,StoredImage>>;imageProvider?:ImageProviderId;profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;tiktok?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
+interface StoredBackend {video?:StoredProfile&{aspectRatio:VideoAspectRatio};images?:Partial<Record<ImageProviderId,StoredImage>>;imageProvider?:ImageProviderId;profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;tiktok?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
 export function environmentBaseUrl(){return normalizeAIBaseUrl(process.env.MARKETING_AI_BASE_URL||OPENAI);}
 function readStored():StoredBackend|undefined {
  try{return JSON.parse(readFileSync(path.join(dataDirectory(),'backend.json'),'utf8'));}
@@ -89,3 +89,6 @@ export function imageConnection(provider:ImageProviderId=imageProvider()){
  return {provider,model:profile?.model||environmentModel||IMAGE_PROVIDERS[provider].model,aspectRatio:profile?.aspectRatio||'1:1' as ImageAspectRatio,key,keySource};
 }
 export function saveImageProvider(input:ImageProviderDraft){const next=storedOrDefault();next.imageProvider=input.provider;next.images={...next.images,[input.provider]:{...updatedProfile(next.images?.[input.provider],{...input,enabled:true}),aspectRatio:input.aspectRatio}};writeStored(next);}
+
+export function videoConnection(){const profile=readStored()?.video;return {provider:'huggingface' as const,model:profile?.model||process.env.HF_VIDEO_MODEL||'Wan-AI/Wan2.2-T2V-A14B',aspectRatio:profile?.aspectRatio||'16:9' as VideoAspectRatio,...profileKey(profile,'HF_VIDEO_TOKEN')};}
+export function saveVideoProvider(input:VideoProviderDraft){const next=storedOrDefault();next.video={...updatedProfile(next.video,{...input,enabled:true}),aspectRatio:input.aspectRatio};writeStored(next);}

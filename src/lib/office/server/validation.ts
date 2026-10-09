@@ -16,7 +16,10 @@ const imageSettings=z.object({provider:z.enum(['openai','imagen','huggingface'])
  if(!valid)ctx.addIssue({code:'custom',path:['model'],message:'Gunakan ID model yang sesuai provider; FLUX.1 mendukung varian schnell atau dev.'});
  if(v.provider==='huggingface'&&v.apiKey&&!v.apiKey.startsWith('hf_'))ctx.addIssue({code:'custom',path:['apiKey'],message:'Gunakan token Hugging Face yang diawali hf_.'});
 });
+const videoSettings=z.object({model:z.enum(['Wan-AI/Wan2.2-T2V-A14B','Wan-AI/Wan2.1-T2V-14B']),aspectRatio:z.enum(['16:9','9:16','1:1']),apiKey:credential.apiKey.refine(v=>!v||v.startsWith('hf_'),'Gunakan token Hugging Face yang diawali hf_.'),clearKey:credential.clearKey}).strict();
 export const actionSchema = z.discriminatedUnion('type', [
+  z.object({type:z.literal('saveVideoProvider'),settings:videoSettings}).strict(),
+  z.object({type:z.literal('generateVideo'),artifactId:id}).strict(),
   z.object({type:z.literal('saveImageProvider'),settings:imageSettings}).strict(),
   z.object({type:z.literal('saveProvider'),provider:z.enum(['claude','gemini','openai']),settings:providerSettings}).strict(),
   z.object({type:z.literal('saveTikTok'),settings:z.object(credential).strict()}).strict(),

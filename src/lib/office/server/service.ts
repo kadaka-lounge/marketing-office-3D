@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Artifact, OfficeAction, OfficeResponse, OfficeState, Task } from '../types';
 import { DIVISIONS } from '../catalog';
-import {saveBackend,saveProvider,saveMeta,saveTikTok,saveImageProvider} from './backend';
+import {saveBackend,saveProvider,saveMeta,saveTikTok,saveImageProvider,saveVideoProvider} from './backend';
 import { addCampaign, addMessage, artifactById, artifactForTask, assertOfficeIdle, assertUnlocked, campaignById, dataDirectory, invalidate, lockCampaign, mutate, now, readState, readyForPublication, renewCampaignLock, taskArtifactType, taskById, taskForAgent, uid, unlockCampaign } from './store';
 import { generateOutput, officeConfig, requestImage, requireAI, sendPublication } from './providers';
 import {initializeTikTokPost,validateTikTokPost,tiktokPostStatus,TikTokRejected,type TikTokPost} from './tiktok';
+import {requestVideo} from './videos';
 import { OfficeError, parseAction } from './validation';
 
 export function getOffice(): OfficeResponse { return { state: readState(), config: officeConfig() }; }
@@ -78,12 +79,12 @@ function mutateArtifact(artifactId: string, callback: (state: OfficeState, artif
 }
 export function exportCampaign(campaignId: string) {
   const state = readState(); const campaign = campaignById(state, campaignId);
-  const assets = state.artifacts.filter(a => a.campaignId === campaignId && a.imageUrl && a.status !== 'revision').map(a => {
-    const name = path.basename(a.imageUrl!);
-    if (!/^image-[0-9a-f-]{36}\.png$/.test(name)) throw new OfficeError('Referensi aset tidak valid.', 409);
-    try { return { artifactId: a.id, filename: name, mimeType: 'image/png', dataBase64: readFileSync(path.join(dataDirectory(), 'assets', name)).toString('base64') }; }
-    catch { throw new OfficeError('Aset gambar tidak tersedia. Buat ulang gambar sebelum mengekspor paket lengkap.', 409); }
-  });
+  const assets = state.artifacts.filter(a=>a.campaignId===campaignId&&a.status!=='revision').flatMap(a=>[a.imageUrl,a.videoUrl].filter((url):url is string=>Boolean(url)).map(url=>{
+    const name=path.basename(url);const video=/^video-[0-9a-f-]{36}\.mp4$/.test(name);
+    if(!video&&!/^image-[0-9a-f-]{36}\.png$/.test(name))throw new OfficeError('Referensi aset tidak valid.',409);
+    try{return {artifactId:a.id,filename:name,mimeType:video?'video/mp4':'image/png',dataBase64:readFileSync(path.join(dataDirectory(),'assets',name)).toString('base64')};}
+    catch{throw new OfficeError('Aset media tidak tersedia. Buat ulang sebelum mengekspor paket lengkap.',409);}
+  }));
   return { schemaVersion: 1, assets, exportedAt: now(), campaign, approved: readyForPublication(state, campaignId), delivery: 'Paket ekspor untuk publikasi manual. Jadwal lokal tidak memublikasikan konten.', tasks: state.tasks.filter(t => t.campaignId === campaignId), artifacts: state.artifacts.filter(a => a.campaignId === campaignId), messages: state.messages.filter(m => m.campaignId === campaignId), publications: state.publications.filter(p => p.campaignId === campaignId), metrics: state.metrics.filter(m => m.campaignId === campaignId) };
 }
 async function publish(publicationId: string) {
@@ -129,9 +130,22 @@ async function generateImage(artifactId: string) {
     });
   } finally { unlockCampaign(artifact.campaignId, token); }
 }
+async function generateVideo(artifactId:string){
+ const artifact=artifactById(readState(),artifactId);if(artifact.type!=='design')throw new OfficeError('Pembuatan video tersedia untuk hasil kerja desain.',409);
+ const task=taskById(readState(),artifact.taskId);if(!['review','approved'].includes(task.status)||artifact.status==='revision')throw new OfficeError('Selesaikan revisi desain sebelum membuat video.',409);
+ const token=lockCampaign(artifact.campaignId);
+ try{
+  const campaign=campaignById(readState(),artifact.campaignId);
+  const bytes=await requestVideo(`Create a short campaign concept video. Follow the creative direction, use natural motion, no extra text or logos. This is a creative concept, not documentation of a real venue. Campaign: ${campaign.name}. Product: ${campaign.product}. Design: ${artifact.content}`);
+  const directory=path.join(dataDirectory(),'assets');await mkdir(directory,{recursive:true,mode:0o700});const name=`${uid('video')}.mp4`;await writeFile(path.join(directory,name),bytes,{flag:'wx',mode:0o600});
+  mutate(state=>{const current=artifactById(state,artifactId);invalidate(state,current.taskId,false);current.videoUrl=`/api/office/assets/${name}`;current.version+=1;current.status='review';current.createdAt=now();taskById(state,current.taskId).status='review';report(state,task,'Video konsep berhasil dibuat. Video dan hasil turunannya perlu review Marketing Manager sebelum publikasi.');});
+ }finally{unlockCampaign(artifact.campaignId,token);}
+}
 export async function performAction(value: unknown): Promise<OfficeResponse> {
   const action: OfficeAction = parseAction(value);
   switch (action.type) {
+    case 'saveVideoProvider': assertOfficeIdle(); saveVideoProvider(action.settings); mutate(()=>{}); break;
+    case 'generateVideo': await generateVideo(action.artifactId); break;
     case 'saveImageProvider': assertOfficeIdle(); saveImageProvider(action.settings); mutate(()=>{}); break;
     case 'saveProvider': assertOfficeIdle(); saveProvider(action.provider,action.settings); mutate(()=>{}); break;
     case 'saveTikTok': assertOfficeIdle(); saveTikTok(action.settings); mutate(()=>{}); break;
@@ -202,7 +216,7 @@ export async function performAction(value: unknown): Promise<OfficeResponse> {
       invalidate(state, task.id, false);
       artifact.content = action.content; artifact.version += 1; artifact.mode = 'manual'; artifact.status = 'review'; artifact.createdAt = now();
       // A visual generated from an older creative brief must not be carried forward as a current asset.
-      delete artifact.imageUrl;
+      delete artifact.imageUrl; delete artifact.videoUrl;
       task.status = 'review'; delete task.error;
       addMessage(state, { channel: 'general', senderId: 'manager', campaignId: artifact.campaignId, taskId: task.id, content: `Menyunting “${artifact.title}” menjadi versi ${artifact.version}. Persetujuan dan hasil turunannya perlu diperbarui.` });
     }); break;
