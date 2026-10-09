@@ -3,11 +3,12 @@ import {readFileSync,writeFileSync,mkdirSync,renameSync} from 'node:fs';
 import path from 'node:path';
 import {dataDirectory} from './store';
 import {OfficeError} from './validation';
-import type {BackendDraft} from '../types';
+import type {BackendDraft,ProviderDraft,ProviderId,MetaDraft} from '../types';
 import {normalizeAIBaseUrl} from '../endpoints';
 
 const OPENAI='https://api.openai.com/v1';
-interface StoredBackend {baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
+interface StoredProfile {model?:string;enabled:boolean;secret?:string;disableEnvironmentKey?:boolean;}
+interface StoredBackend {profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
 export function environmentBaseUrl(){return normalizeAIBaseUrl(process.env.MARKETING_AI_BASE_URL||OPENAI);}
 function readStored():StoredBackend|undefined {
  try{return JSON.parse(readFileSync(path.join(dataDirectory(),'backend.json'),'utf8'));}
@@ -35,11 +36,39 @@ export function backendConnection(){
 export function saveBackend(input:BackendDraft){
  const previous=readStored();const currentBase=normalizeAIBaseUrl(previous?.baseUrl||environmentBaseUrl());const baseUrl=normalizeAIBaseUrl(input.baseUrl);
  const changed=baseUrl!==currentBase;
- const next:StoredBackend={baseUrl,model:input.model,disableEnvironmentKey: input.clearKey || (changed ? false : previous?.disableEnvironmentKey)};
+ const next:StoredBackend={...previous,secret:undefined,baseUrl,model:input.model,disableEnvironmentKey: input.clearKey || (changed ? false : previous?.disableEnvironmentKey)};
  if(input.apiKey){next.secret=encrypt(input.apiKey);next.disableEnvironmentKey=false;}
  else if(!input.clearKey&&!changed&&previous?.secret)next.secret=previous.secret;
  // A stored key is scoped to its endpoint. Never forward it to a changed provider.
+ writeStored(next);
+}
+function writeStored(next:StoredBackend){
  const directory=dataDirectory();mkdirSync(directory,{recursive:true,mode:0o700});
  const temporary=path.join(directory,`backend-${randomBytes(8).toString('hex')}.tmp`);
  writeFileSync(temporary,JSON.stringify(next),{flag:'wx',mode:0o600});renameSync(temporary,path.join(directory,'backend.json'));
 }
+
+export const PROVIDERS = {
+ claude:{baseUrl:'https://api.anthropic.com/v1',model:'claude-sonnet-4-6',environment:'CLAUDE_API_KEY'},
+ gemini:{baseUrl:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-2.5-flash',environment:'GEMINI_API_KEY'},
+ openai:{baseUrl:OPENAI,model:'gpt-4.1-mini',environment:'DESIGN_OPENAI_KEY'},
+} as const;
+function profileKey(profile:StoredProfile|undefined,environment:string){
+ let key:string|undefined;
+ try{key=profile?.secret?decrypt(profile.secret):!profile?.disableEnvironmentKey?process.env[environment]:undefined;}catch(error){if(!(error instanceof OfficeError))throw error;}
+ return {key,keySource:(key?(profile?.secret?'stored':'environment'):'none') as 'stored'|'environment'|'none'};
+}
+export function providerConnection(provider:ProviderId){
+ const profile=readStored()?.profiles?.[provider];const defaults=PROVIDERS[provider];const connection=profileKey(profile,defaults.environment);
+ return {provider,baseUrl:defaults.baseUrl,model:profile?.model||defaults.model,enabled:profile?.enabled??Boolean(connection.key),...connection};
+}
+export function metaConnection(){const profile=readStored()?.meta;const connection=profileKey(profile,'META_GRAPH_TOKEN');return {enabled:profile?.enabled??Boolean(connection.key),...connection};}
+function updatedProfile(previous:StoredProfile|undefined,input:ProviderDraft|MetaDraft):StoredProfile{
+ const next={...previous,...('model' in input?{model:input.model}:{}),enabled:input.enabled};
+ if(input.apiKey){next.secret=encrypt(input.apiKey);next.disableEnvironmentKey=false;}
+ else if(input.clearKey){delete next.secret;next.disableEnvironmentKey=true;}
+ return next;
+}
+function storedOrDefault():StoredBackend{return readStored()||{baseUrl:environmentBaseUrl(),model:backendConnection().model};}
+export function saveProvider(provider:ProviderId,input:ProviderDraft){const next=storedOrDefault();next.profiles={...next.profiles,[provider]:updatedProfile(next.profiles?.[provider],input)};writeStored(next);}
+export function saveMeta(input:MetaDraft){const next=storedOrDefault();next.meta=updatedProfile(next.meta,input);writeStored(next);}

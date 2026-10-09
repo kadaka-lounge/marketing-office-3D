@@ -31,6 +31,7 @@ export default defineConfig({
     env: {
       OFFICE_DATA_DIR: process.env.E2E_DATA_DIR || `/tmp/kadaka-office-e2e-${process.pid}`,
       OFFICE_ACCESS_TOKEN: '',
+      CLAUDE_API_KEY:'', GEMINI_API_KEY:'', DESIGN_OPENAI_KEY:'', META_GRAPH_TOKEN:'',
       MARKETING_AI_KEY: '',
       OPENAI_API_KEY: '',
       MARKETING_IMAGE_KEY: '',

@@ -2,6 +2,10 @@ export type DivisionId = 'manager' | 'marketing' | 'design' | 'analytics' | 'pub
 export type AgentStatus = 'idle' | 'working' | 'review' | 'error';
 export interface AgentSkill { name: string; instructions: string; }
 export interface AgentDraft { name: string; role: string; division: Exclude<DivisionId, 'manager'>; avatarIndex: number; instructions: string; skills: AgentSkill[]; }
+export type ProviderId = 'claude' | 'gemini' | 'openai';
+export interface ProviderDraft { model:string; enabled:boolean; apiKey?:string; clearKey?:boolean; }
+export interface MetaDraft { enabled:boolean; apiKey?:string; clearKey?:boolean; }
+export interface ProviderStatus { provider:ProviderId; model:string; enabled:boolean; configured:boolean; keySource:'stored'|'environment'|'none'; }
 export interface BackendDraft { baseUrl: string; model: string; apiKey?: string; clearKey?: boolean; }
 export interface Agent { id: string; name: string; role: string; division: DivisionId; avatarIndex: number; status: AgentStatus; color: string; instructions?: string; skills?: AgentSkill[]; custom?: boolean; }
 export interface Division { id: DivisionId; name: string; subtitle: string; color: string; tint: string; }
@@ -14,9 +18,11 @@ export interface Publication { id: string; campaignId: string; channel: string; 
 export interface AgentRun { id: string; taskId: string; agentId: string; mode: 'demo' | 'live'; status: 'running' | 'completed' | 'failed'; startedAt: string; completedAt?: string; error?: string; }
 export interface Metric { id: string; campaignId: string; channel: string; impressions: number; clicks: number; conversions: number; spend: number; recordedAt: string; }
 export interface OfficeState { agents: Agent[]; campaigns: Campaign[]; tasks: Task[]; messages: Message[]; artifacts: Artifact[]; publications: Publication[]; runs: AgentRun[]; metrics: Metric[]; revision: number; }
-export interface OfficeConfig { aiConfigured: boolean; aiProvider: string; aiModel: string; imageConfigured: boolean; publisherConfigured: boolean; accessProtected: boolean; aiBaseUrl: string; aiLocal:boolean; aiKeySource: 'environment' | 'stored' | 'none'; }
+export interface OfficeConfig { aiConfigured: boolean; defaultAIConfigured:boolean; providers:ProviderStatus[]; meta:{enabled:boolean;configured:boolean;keySource:'stored'|'environment'|'none'}; aiProvider: string; aiModel: string; imageConfigured: boolean; publisherConfigured: boolean; accessProtected: boolean; aiBaseUrl: string; aiLocal:boolean; aiKeySource: 'environment' | 'stored' | 'none'; }
 export interface OfficeResponse { state: OfficeState; config: OfficeConfig; }
 export type OfficeAction =
+ | { type:'saveProvider'; provider:ProviderId; settings:ProviderDraft }
+ | { type:'saveMeta'; settings:MetaDraft }
  | { type:'saveBackend'; backend:BackendDraft }
  | { type:'addAgent'; agent:AgentDraft; campaignId?:string }
  | { type:'updateAgent'; agentId:string; agent:AgentDraft }

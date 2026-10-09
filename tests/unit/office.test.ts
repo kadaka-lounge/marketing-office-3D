@@ -14,7 +14,7 @@ async function runDemo(){return (await performAction({type:'runCampaign',campaig
 async function approveAll(){for(const a of readState().artifacts)await performAction({type:'approveArtifact',artifactId:a.id});}
 beforeEach(()=>{
  directory=mkdtempSync(path.join(tmpdir(),'kadaka-unit-'));vi.stubEnv('OFFICE_DATA_DIR',directory);
- for(const name of ['MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_IMAGE_KEY','OFFICE_ACCESS_TOKEN','MARKETING_AI_BASE_URL','MARKETING_PUBLISH_URL','MARKETING_PUBLISH_TOKEN'])vi.stubEnv(name,'');
+ for(const name of ['CLAUDE_API_KEY','GEMINI_API_KEY','DESIGN_OPENAI_KEY','META_GRAPH_TOKEN','MARKETING_AI_KEY','OPENAI_API_KEY','MARKETING_IMAGE_KEY','OFFICE_ACCESS_TOKEN','MARKETING_AI_BASE_URL','MARKETING_PUBLISH_URL','MARKETING_PUBLISH_TOKEN'])vi.stubEnv(name,'');
 });
 afterEach(()=>{closeDatabases();rmSync(directory,{recursive:true,force:true});vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 

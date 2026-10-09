@@ -245,3 +245,26 @@ test('Ollama settings use a local OpenAI-compatible server without an API key', 
     await expect(page.getByTestId('backend-model')).toHaveValue('qwen2.5:3b');
   }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+test('division API settings persist independent encrypted credentials and fit mobile',async({page,request})=>{
+ await page.goto('/');await page.getByTestId('tab-backend').click();await page.getByTestId('backend-tab-providers').click();
+ for(const provider of ['claude','gemini','openai','meta']){
+  await page.getByTestId(`${provider}-enabled`).check();
+  await page.getByTestId(`${provider}-key`).fill(`fake-browser-${provider}-key`);
+  await page.getByTestId(`${provider}-save`).click();
+  await expect(page.getByTestId(`${provider}-key`)).toHaveValue('');
+  await expect(page.getByTestId(`provider-${provider}`).getByRole('status')).toContainText('Konfigurasi tersimpan');
+ }
+ const response=await request.get('/api/office');const office=await response.json() as OfficeResponse;
+ expect(office.config.providers.every(p=>p.enabled&&p.configured&&p.keySource==='stored')).toBe(true);
+ expect(office.config.meta).toMatchObject({enabled:true,configured:true,keySource:'stored'});
+ for(const provider of ['claude','gemini','openai','meta'])expect(JSON.stringify(office)).not.toContain(`fake-browser-${provider}-key`);
+ await page.reload();await page.getByTestId('tab-backend').click();await page.getByTestId('backend-tab-providers').click();
+ for(const provider of ['claude','gemini','openai','meta']){await expect(page.getByTestId(`${provider}-enabled`)).toBeChecked();await expect(page.getByTestId(`${provider}-key`)).toHaveValue('');await expect(page.getByTestId(`${provider}-test`)).toBeEnabled();}
+ await page.screenshot({path:'/tmp/kadaka-division-providers-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ await expect.poll(()=>page.locator('.sidebar').evaluate(n=>n.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+ await page.screenshot({path:'/tmp/kadaka-division-providers.png',fullPage:true});
+ await page.getByTestId('meta-clear').check();await page.getByTestId('meta-save').click();await expect(page.getByTestId('meta-test')).toBeDisabled();
+});

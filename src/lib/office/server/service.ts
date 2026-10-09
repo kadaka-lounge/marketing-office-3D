@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Artifact, OfficeAction, OfficeResponse, OfficeState, Task } from '../types';
 import { DIVISIONS } from '../catalog';
-import {saveBackend} from './backend';
+import {saveBackend,saveProvider,saveMeta} from './backend';
 import { addCampaign, addMessage, artifactById, artifactForTask, assertOfficeIdle, assertUnlocked, campaignById, dataDirectory, invalidate, lockCampaign, mutate, now, readState, readyForPublication, renewCampaignLock, taskArtifactType, taskById, taskForAgent, uid, unlockCampaign } from './store';
 import { generateOutput, officeConfig, requestImage, requireAI, sendPublication } from './providers';
 import { OfficeError, parseAction } from './validation';
@@ -55,7 +55,7 @@ async function run(campaignId: string, mode: 'demo' | 'live', taskId?: string) {
   campaignById(readState(), campaignId);
   const pending = readState().tasks.filter(t => t.campaignId === campaignId && (!taskId || t.id === taskId) && !['review', 'approved'].includes(t.status));
   if (!pending.length) return; // Successful work is idempotent even if provider configuration later changes.
-  if (mode === 'live') requireAI();
+  if (mode === 'live') pending.forEach(task=>requireAI(task));
   const token = lockCampaign(campaignId);
   try {
     // Only reachable for an expired operation: retain history and recover interrupted work.
@@ -130,6 +130,8 @@ async function generateImage(artifactId: string) {
 export async function performAction(value: unknown): Promise<OfficeResponse> {
   const action: OfficeAction = parseAction(value);
   switch (action.type) {
+    case 'saveProvider': assertOfficeIdle(); saveProvider(action.provider,action.settings); mutate(()=>{}); break;
+    case 'saveMeta': assertOfficeIdle(); saveMeta(action.settings); mutate(()=>{}); break;
     case 'saveBackend': assertOfficeIdle(); saveBackend(action.backend); mutate(() => {}); break;
     case 'addAgent': mutate(state => {
       if (state.agents.filter(a => a.id !== 'manager').length >= 32) throw new OfficeError('Batas 32 agen AI per kantor tercapai.',409);

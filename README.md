@@ -56,7 +56,7 @@ LOCAL_LLM_MODEL=qwen2.5:3b
 LOCAL_LLM_BASE_URL=http://127.0.0.1:11434/v1
 ```
 
-Launcher membaca `.env.local`, mempertahankan data kantor, dan tidak meneruskan kunci teks provider cloud ke Ollama. Endpoint HTTP diperbolehkan hanya untuk loopback (`localhost`, `127.0.0.1`, `[::1]`); provider di jaringan lain tetap membutuhkan HTTPS. Perangkat harus memiliki RAM/VRAM yang cukup untuk model yang Anda pilih. Pemuatan awal atau inferensi lokal dapat menunggu hingga 5 menit per permintaan. Skill, chat, tugas, review, dan ekspor memakai alur yang sama. GPT Image tetap membutuhkan koneksi OpenAI terpisah melalui `MARKETING_IMAGE_KEY`.
+Launcher membaca `.env.local`, mempertahankan data kantor, dan tidak meneruskan kunci teks provider cloud ke Ollama. Endpoint HTTP diperbolehkan hanya untuk loopback (`localhost`, `127.0.0.1`, `[::1]`); provider di jaringan lain tetap membutuhkan HTTPS. Perangkat harus memiliki RAM/VRAM yang cukup untuk model yang Anda pilih. Pemuatan awal atau inferensi lokal dapat menunggu hingga 5 menit per permintaan. Skill, chat, tugas, review, dan ekspor memakai alur yang sama. GPT Image membutuhkan koneksi OpenAI melalui API per divisi atau `MARKETING_IMAGE_KEY`.
 
 Jika kantor dijalankan di cloud, localhost menunjuk mesin cloud dan tidak dapat menjangkau Ollama pada laptop Anda. Jalankan kantor di laptop untuk memakai model lokal tanpa integrasi jaringan tambahan.
 
@@ -89,7 +89,7 @@ Jika kantor dijalankan di cloud, localhost menunjuk mesin cloud dan tidak dapat 
 ## Demo, AI langsung, dan manual
 
 - **Demo:** menghasilkan contoh kerja berbasis brief agar seluruh alur dapat dicoba tanpa biaya API. Contoh riset, perkiraan, dan KPI adalah bahan latihan, bukan data pasar yang telah diverifikasi.
-- **AI langsung:** menggunakan OpenAI atau provider yang kompatibel dengan OpenAI Chat Completions dari server ketika kunci tersedia. Tinjau hasil, asumsi, hak penggunaan aset, dan klaim sebelum menyetujuinya. Model bahasa tidak otomatis mengakses analitik akun atau melakukan riset web.
+- **AI langsung:** menggunakan backend utama yang kompatibel dengan OpenAI Chat Completions, atau Claude/Gemini/OpenAI sesuai pengaturan API per divisi dari server ketika kunci tersedia. Tinjau hasil, asumsi, hak penggunaan aset, dan klaim sebelum menyetujuinya. Model bahasa tidak otomatis mengakses analitik akun atau melakukan riset web.
 - **Manual:** manager dapat menyunting isi hasil kerja. Perubahan tetap disimpan bersama kampanye.
 
 Kantor 3D menampilkan karakter dan status pekerjaan. Gerakan karakter adalah animasi tampilan; gerakan itu sendiri bukan bukti bahwa model sedang menjalankan pekerjaan.
@@ -112,7 +112,7 @@ Pilih **Sunting skill** untuk memperbarui profil atau keahlian agen. Perubahan m
 | `OPENAI_API_KEY` | Alternatif jika `MARKETING_AI_KEY` tidak diisi | Kosong |
 | `MARKETING_AI_BASE_URL` | URL dasar API teks kompatibel OpenAI | `https://api.openai.com/v1` |
 | `MARKETING_AI_MODEL` | Model teks | `gpt-4.1-mini` |
-| `MARKETING_IMAGE_KEY` | Kunci OpenAI terpisah untuk pembuatan gambar kampanye | Menggunakan kunci teks hanya jika endpoint teks adalah OpenAI |
+| `MARKETING_IMAGE_KEY` | Kunci OpenAI terpisah untuk pembuatan gambar kampanye | Profil OpenAI desain aktif, lalu kunci backend utama jika endpoint-nya OpenAI |
 | `OFFICE_DATA_DIR` | Direktori SQLite, gambar, konfigurasi backend, dan kunci enkripsi lokal | `.data` |
 | `OFFICE_ACCESS_TOKEN` | Token akses manager opsional | Kosong; tidak ada autentikasi aplikasi |
 | `MARKETING_PUBLISH_URL` | Endpoint webhook penerbitan opsional | Kosong; ekspor lokal tersedia |
@@ -143,3 +143,24 @@ Hasil pemeriksaan instance ini tercatat di [docs/VALIDATION.md](docs/VALIDATION.
 Integrasi menggunakan kode dan model nyata yang disalin secara selektif dari upstream Claw3D pada commit `0565b7892909eca7bbc8f2d9b0fad171dd75ad7c`: karakter voxel, pembangkit profil avatar, helper koordinat, dan furnitur. Aplikasi pemasaran, data lokal, dan alur persetujuan dikembangkan terpisah; ini bukan pemasangan penuh aplikasi upstream.
 
 Daftar berkas dan adaptasi tercatat di [vendor/claw3d/README.md](vendor/claw3d/README.md). Lisensi MIT upstream dipertahankan di [vendor/claw3d/LICENSE](vendor/claw3d/LICENSE). Lisensi font berada bersama aset font di `public/office-assets/fonts/`.
+
+## API per divisi
+
+Buka **Backend & API → API per divisi** untuk memasukkan kunci secara privat:
+
+| Koneksi | Agen dan pekerjaan | Model bawaan |
+| --- | --- | --- |
+| Claude / Anthropic | Atlas, Nova, dan agen tambahan Data Analyst | `claude-sonnet-4-6` |
+| Gemini / Google | Luna dan agen tambahan Graphic Design, untuk brief dan arahan visual | `gemini-2.5-flash` |
+| OpenAI API / ChatGPT | Pixel; semua agen desain jika Gemini dinonaktifkan; GPT Image | `gpt-4.1-mini` |
+| Meta Graph | Publisher: uji identitas akun Instagram/Facebook melalui token Facebook Login | Bukan model LLM |
+
+Digital Marketing dan pekerjaan teks Publisher tetap memakai backend utama, termasuk Ollama `qwen2.5:3b`. Provider divisi yang dinonaktifkan kembali ke backend utama (desain memakai OpenAI jika masih aktif). Provider aktif tanpa kunci memblokir tugas tersebut; kunci provider lain tidak dipakai sebagai pengganti. Model dapat diganti dengan ID yang tersedia pada akun API Anda. Langganan aplikasi ChatGPT/Claude/Gemini tidak otomatis menyediakan akses API berbayar.
+
+Kunci disimpan terpisah dengan enkripsi AES-256-GCM pada server. Input kosong mempertahankan kunci; **Hapus kunci** menghapus nilai tersimpan dan menonaktifkan fallback environment. Menonaktifkan provider mempertahankan kuncinya untuk penggunaan berikutnya. Endpoint provider divisi tetap agar kredensial tidak diteruskan ke host kustom. Simpan seluruh `OFFICE_DATA_DIR`, termasuk `backend.key`, secara privat dan persisten.
+
+Alternatif environment: `CLAUDE_API_KEY`, `GEMINI_API_KEY`, `DESIGN_OPENAI_KEY`, dan `META_GRAPH_TOKEN`. Kunci environment mengaktifkan koneksi jika belum ada pengaturan tersimpan yang menonaktifkannya. Jangan gunakan awalan `NEXT_PUBLIC_`. Untuk GPT Image, prioritas kunci adalah `MARKETING_IMAGE_KEY`, lalu profil OpenAI aktif, lalu kunci backend utama jika endpoint-nya OpenAI.
+
+**Uji koneksi tersimpan** mengirim permintaan teks kecil pada API model (dapat dikenai biaya). Uji Meta hanya membaca `GET /v23.0/me?fields=id,name` dengan header Bearer; keberhasilan menunjukkan identitas token, bukan kelengkapan izin publishing atau koneksi akun Instagram tertentu. Token Instagram Login yang hanya berlaku di `graph.instagram.com` tidak didukung koneksi ini. Publikasi tetap melalui ekspor manual atau webhook Publisher dengan tindakan eksplisit Marketing Manager. Menyimpan token, menguji koneksi, menyetujui hasil, atau menjadwalkan konten tidak memublikasikan apa pun. TikTok memerlukan integrasi terpisah.
+
+Server membutuhkan akses HTTPS ke `api.anthropic.com`, `generativelanguage.googleapis.com`, `api.openai.com`, dan `graph.facebook.com` untuk koneksi terkait. Tambahkan domain tersebut pada allowlist environment jika diperlukan; laptop membutuhkan akses internet untuk provider cloud. Pengujian otomatis memakai respons API tiruan untuk memverifikasi format native, routing, dan pemisahan kunci; akses akun/model sebenarnya harus diuji dengan kunci Anda melalui pengaturan aplikasi.
