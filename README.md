@@ -40,7 +40,7 @@ npm ci
 npm run dev:local
 ```
 
-Buka browser laptop pada port **3000** di localhost. Preset **Backend & API → Koneksi API → Ollama (lokal)** memakai `http://127.0.0.1:11434/v1` dan tidak memerlukan API key. Pilih **Simpan backend**, lalu **Uji koneksi tersimpan**. Pilih mode AI langsung untuk menjalankan agen dengan model lokal. Jika Anda sudah menyimpan provider lain sebelumnya, pilih dan simpan Ollama agar konfigurasi tersimpan diperbarui; launcher tidak menghapus pengaturan lama.
+Buka browser laptop pada port **3000** di localhost. Preset **Backend & API → Koneksi API → Ollama (lokal)** memakai `http://127.0.0.1:11434/v1` dan tidak memerlukan API key. Pilih **Simpan backend**, lalu **Uji koneksi tersimpan**. Alamat root Ollama, `/api/chat`, dan URL lengkap `/v1/chat/completions` otomatis dinormalkan ke URL dasar `/v1`, termasuk konfigurasi lama. Jika pesan menunjukkan model tidak ditemukan (HTTP 404), periksa `ollama list`; bila model belum tersedia, jalankan `ollama pull qwen2.5:3b` di laptop. Pilih mode AI langsung untuk menjalankan agen dengan model lokal. Jika Anda sudah menyimpan provider lain sebelumnya, pilih dan simpan Ollama agar konfigurasi tersimpan diperbarui; launcher tidak menghapus pengaturan lama.
 
 Untuk produksi di laptop:
 

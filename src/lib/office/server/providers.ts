@@ -23,6 +23,12 @@ async function checkedFetch(url: string, init: RequestInit, timeout = 60000, all
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:' && !(allowLocal&&isLocalEndpoint(url))) throw new OfficeError('Provider harus menggunakan HTTPS atau loopback lokal untuk LLM.', 409);
     const response = await fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(timeout) });
+    if(response.status===404&&allowLocal){
+      let modelMissing=false;
+      try{const body=await response.json();const error=typeof body?.error==='string'?body.error:body?.error?.message;modelMissing=typeof error==='string'&&/model/i.test(error)&&/not found|does not exist|unknown model/i.test(error);}catch{}
+      if(modelMissing)throw new OfficeError('Model tidak ditemukan (HTTP 404). Untuk Ollama, periksa ollama list dan pilih nama model yang terpasang. Jika qwen2.5:3b belum tersedia, jalankan ollama pull qwen2.5:3b di laptop.',502);
+      throw new OfficeError('Endpoint API tidak ditemukan (HTTP 404). Ollama memakai URL dasar http://127.0.0.1:11434/v1. Periksa endpoint dan nama model pada Backend & API.',502);
+    }
     if (!response.ok) throw new OfficeError(`Provider gagal (HTTP ${response.status}). Periksa akses, kuota, dan konfigurasi provider; pekerjaan dapat dicoba kembali.`, 502);
     return response;
   } catch (error) {

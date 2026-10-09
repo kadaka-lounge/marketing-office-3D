@@ -6,6 +6,7 @@ import {getOffice,performAction,exportCampaign} from '../../src/lib/office/serve
 import {readState,closeDatabases,lockCampaign,unlockCampaign} from '../../src/lib/office/server/store';
 import {backendConnection} from '../../src/lib/office/server/backend';
 import {testBackendConnection} from '../../src/lib/office/server/providers';
+import {writeFileSync} from 'node:fs';
 import type {AgentDraft} from '../../src/lib/office/types';
 let directory:string;
 const baseUrl='https://api.openai.com/v1';
@@ -16,6 +17,26 @@ async function save(backend:{baseUrl:string;model:string;apiKey?:string;clearKey
 async function add(attach=false){await performAction({type:'addAgent',agent,...(attach?{campaignId:'campaign-kadaka'}:{})});return readState().agents.find(a=>a.name===agent.name)!;}
 
 describe('backend configuration',()=>{
+ it('normalizes Ollama root, native API, and full chat URLs into the compatible base URL',async()=>{
+  for(const suffix of ['', '/', '/api', '/api/chat', '/api/generate','/v1/chat/completions','/api/chat/completions']){
+   await save({baseUrl:`http://127.0.0.1:11434${suffix}`,model:'qwen2.5:3b'});
+   expect(getOffice().config.aiBaseUrl).toBe('http://127.0.0.1:11434/v1');
+  }
+  await save({baseUrl:'https://api.example.test/custom/v1/chat/completions/',model:'custom',apiKey:'fake-key'});
+  expect(backendConnection().baseUrl).toBe('https://api.example.test/custom/v1');
+  await save({baseUrl:'https://api.example.test/custom/v1',model:'custom'});expect(backendConnection().key).toBe('fake-key');
+ });
+ it('repairs existing stored and environment Ollama URLs without rewriting office data',()=>{
+  vi.stubEnv('MARKETING_AI_BASE_URL','http://localhost:11434/api/chat');expect(backendConnection().baseUrl).toBe('http://localhost:11434/v1');
+  getOffice();writeFileSync(path.join(directory,'backend.json'),JSON.stringify({baseUrl:'http://127.0.0.1:11434/v1/chat/completions',model:'qwen2.5:3b'}));
+  const before=readState();expect(getOffice().config.aiBaseUrl).toBe('http://127.0.0.1:11434/v1');expect(readState()).toEqual(before);
+ });
+ it('distinguishes a missing Ollama model from a missing endpoint',async()=>{
+  await save({baseUrl:'http://127.0.0.1:11434',model:'qwen2.5:3b'});
+  const mock=vi.fn().mockResolvedValue(new Response(JSON.stringify({error:"model 'qwen2.5:3b' not found"}),{status:404}));vi.stubGlobal('fetch',mock);
+  await expect(testBackendConnection()).rejects.toThrow('Model tidak ditemukan');expect(mock.mock.calls[0][0]).toBe('http://127.0.0.1:11434/v1/chat/completions');
+  mock.mockResolvedValue(new Response('404 page not found',{status:404}));await expect(testBackendConnection()).rejects.toThrow('Endpoint API tidak ditemukan');
+ });
  it('encrypts API keys, keeps storage private, and returns metadata only',async()=>{
   await save({baseUrl,model:'gpt-4.1-mini',apiKey:'fake-new-provider-secret'});
   expect(readFileSync(path.join(directory,'backend.json'),'utf8')).not.toContain('fake-new-provider-secret');

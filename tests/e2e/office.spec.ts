@@ -216,6 +216,7 @@ test('a custom agent uses editable skills in campaign work and manager chat', as
 test('Ollama settings use a local OpenAI-compatible server without an API key', async ({page,request})=>{
   const calls:{path:string|undefined;authorization:string|undefined;model:string}[]=[];
   const server=createServer(async (req,res)=>{
+    if(req.url!=='/v1/chat/completions'){res.writeHead(404);res.end('404 page not found');return;}
     const chunks=[];for await(const chunk of req)chunks.push(chunk);
     const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));
     calls.push({path:req.url,authorization:req.headers.authorization,model:body.model});
@@ -228,8 +229,9 @@ test('Ollama settings use a local OpenAI-compatible server without an API key', 
     await page.getByRole('combobox',{name:'Provider API'}).selectOption('Ollama (lokal)');
     await expect(page.getByTestId('backend-url')).toHaveValue('http://127.0.0.1:11434/v1');
     await expect(page.getByTestId('backend-model')).toHaveValue('qwen2.5:3b');
-    await page.getByTestId('backend-url').fill(`http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`);
+    await page.getByTestId('backend-url').fill(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/chat`);
     await page.getByTestId('backend-save').click();
+    await expect(page.getByTestId('backend-url')).toHaveValue(`http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`);
     await expect(page.getByTestId('backend-test')).toBeEnabled();
     await page.getByTestId('backend-test').click();
     await expect(page.getByRole('status').filter({hasText:'Koneksi berhasil'})).toBeVisible();
