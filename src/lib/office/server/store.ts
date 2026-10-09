@@ -29,9 +29,12 @@ export function addCampaign(state: OfficeState, brief: Brief, id = uid('campaign
   state.campaigns.push(campaign);
   let previous: string | undefined;
   for (const template of taskTemplates) {
-    const agent = AGENTS.find(a => a.id === template.agentId)!;
+    const agent = state.agents.find(a => a.id === template.agentId)!;
     const task: Task = { id: uid('task'), campaignId: id, agentId: agent.id, division: agent.division, title: template.title, instructions: template.instructions, dependencies: previous ? [previous] : [], status: 'pending' };
     state.tasks.push(task); previous = task.id;
+  }
+  for (const agent of state.agents.filter(a => a.custom)) {
+    const task = taskForAgent(agent, id, previous); state.tasks.push(task); previous = task.id;
   }
   addMessage(state, { channel: 'general', senderId: 'manager', campaignId: id, content: `Brief kampanye “${brief.name}” siap. Tujuan: ${brief.objective}. Kanal: ${brief.channels.join(', ')}. Tim menunggu perintah manager.` });
   return campaign;
@@ -80,6 +83,10 @@ export function lockCampaign(campaignId: string): string {
   } catch (error) { db.exec('ROLLBACK'); throw error; }
 }
 export function unlockCampaign(campaignId: string, token: string) { database().prepare('DELETE FROM operations WHERE campaign_id=? AND token=?').run(campaignId, token); }
+export function renewCampaignLock(campaignId: string, token: string) {
+  const renewed = database().prepare('UPDATE operations SET expires=? WHERE campaign_id=? AND token=? AND expires>=?').run(Date.now()+15*60*1000,campaignId,token,Date.now());
+  if(!renewed.changes)throw new OfficeError('Kunci pekerjaan berakhir. Jalankan ulang campaign untuk melanjutkan.',409);
+}
 export function assertUnlocked(campaignId: string) {
   const lock = database().prepare('SELECT 1 FROM operations WHERE campaign_id=? AND expires>=?').get(campaignId, Date.now());
   if (lock) throw new OfficeError('Kampanye sedang diproses. Tunggu pekerjaan selesai.', 409);
@@ -130,7 +137,17 @@ function refreshStatus(state: OfficeState) {
   }
 }
 export function taskArtifactType(task: Task): Artifact['type'] {
-  return taskTemplates.find(t => t.agentId === task.agentId)?.type || 'strategy';
+  return taskTemplates.find(t => t.agentId === task.agentId)?.type || ({design:'design',analytics:'analysis',publisher:'publication',marketing:'strategy',manager:'strategy'} as const)[task.division];
 }
-export function agentForTask(task: Task): Agent { return AGENTS.find(a => a.id === task.agentId)!; }
+export function agentForTask(task: Task, state: OfficeState = readState()): Agent {
+  const agent = state.agents.find(a => a.id === task.agentId);
+  if (!agent) throw new OfficeError('Agen tugas tidak ditemukan.', 404);
+  return agent;
+}
+export function taskForAgent(agent: Agent, campaignId: string, dependency?: string): Task {
+  return {id:uid('task'),campaignId,agentId:agent.id,division:agent.division,title:`${agent.role}: ${agent.skills?.map(s => s.name).join(', ') || agent.name}`,instructions:`Kerjakan brief sesuai peran ${agent.role}. ${agent.instructions || ''} Terapkan skill: ${agent.skills?.map(s => s.name).join(', ') || 'peran agen'}. Laporkan hasil ke Marketing Manager.`,dependencies:dependency?[dependency]:[],status:'pending'};
+}
+export function assertOfficeIdle() {
+  if (database().prepare('SELECT 1 FROM operations WHERE expires>=? LIMIT 1').get(Date.now())) throw new OfficeError('Tunggu pekerjaan aktif selesai sebelum mengganti backend atau skill agen.',409);
+}
 export function closeDatabases() { for (const db of databases.values()) db.close(); databases.clear(); }

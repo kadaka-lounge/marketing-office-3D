@@ -2,8 +2,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Artifact, OfficeAction, OfficeResponse, OfficeState, Task } from '../types';
-import { AGENTS } from '../catalog';
-import { addCampaign, addMessage, artifactById, artifactForTask, assertUnlocked, campaignById, dataDirectory, invalidate, lockCampaign, mutate, now, readState, readyForPublication, taskArtifactType, taskById, uid, unlockCampaign } from './store';
+import { DIVISIONS } from '../catalog';
+import {saveBackend} from './backend';
+import { addCampaign, addMessage, artifactById, artifactForTask, assertOfficeIdle, assertUnlocked, campaignById, dataDirectory, invalidate, lockCampaign, mutate, now, readState, readyForPublication, renewCampaignLock, taskArtifactType, taskById, taskForAgent, uid, unlockCampaign } from './store';
 import { generateOutput, officeConfig, requestImage, requireAI, sendPublication } from './providers';
 import { OfficeError, parseAction } from './validation';
 
@@ -65,7 +66,7 @@ async function run(campaignId: string, mode: 'demo' | 'live', taskId?: string) {
       }
     });
     const taskIds = taskId ? [taskId] : readState().tasks.filter(t => t.campaignId === campaignId).map(t => t.id);
-    for (const id of taskIds) await executeTask(id, mode);
+    for (const id of taskIds) { renewCampaignLock(campaignId,token); await executeTask(id, mode); }
   } finally { unlockCampaign(campaignId, token); }
 }
 function mutateArtifact(artifactId: string, callback: (state: OfficeState, artifact: Artifact, task: Task) => void) {
@@ -129,6 +130,29 @@ async function generateImage(artifactId: string) {
 export async function performAction(value: unknown): Promise<OfficeResponse> {
   const action: OfficeAction = parseAction(value);
   switch (action.type) {
+    case 'saveBackend': assertOfficeIdle(); saveBackend(action.backend); mutate(() => {}); break;
+    case 'addAgent': mutate(state => {
+      if (state.agents.filter(a => a.id !== 'manager').length >= 32) throw new OfficeError('Batas 32 agen AI per kantor tercapai.',409);
+      if(state.agents.filter(a=>a.division===action.agent.division).length>=8)throw new OfficeError('Batas 8 agen per divisi tercapai.',409);
+      if (state.agents.some(a => a.name.toLowerCase() === action.agent.name.toLowerCase())) throw new OfficeError('Nama agen sudah digunakan.',409);
+      if (action.campaignId) {campaignById(state,action.campaignId);assertUnlocked(action.campaignId);if(state.tasks.filter(t=>t.campaignId===action.campaignId).length>=100)throw new OfficeError('Batas 100 tugas per kampanye tercapai.',409);}
+      const agent = {...action.agent,id:uid('agent'),status:'idle' as const,custom:true,color:DIVISIONS.find(d=>d.id===action.agent.division)!.color};
+      state.agents.push(agent);
+      if(action.campaignId){const prior=state.tasks.filter(t=>t.campaignId===action.campaignId).at(-1);state.tasks.push(taskForAgent(agent,action.campaignId,prior?.id));state.publications=state.publications.filter(p=>p.campaignId!==action.campaignId||p.status==='published');}
+      addMessage(state,{channel:'general',senderId:'manager',content:`${agent.name} bergabung sebagai ${agent.role}. Skill: ${agent.skills.map(s=>s.name).join(', ')}.`,campaignId:action.campaignId});
+    });break;
+    case 'updateAgent': mutate(state => {
+      assertOfficeIdle(); const agent=state.agents.find(a=>a.id===action.agentId&&a.id!=='manager');
+      if(!agent)throw new OfficeError('Agen AI tidak ditemukan.',404);
+      if(agent.division!==action.agent.division&&state.agents.filter(a=>a.division===action.agent.division).length>=8)throw new OfficeError('Batas 8 agen per divisi tercapai.',409);
+      if(state.agents.some(a=>a.id!==agent.id&&a.name.toLowerCase()===action.agent.name.toLowerCase()))throw new OfficeError('Nama agen sudah digunakan.',409);
+      const changed=JSON.stringify({name:agent.name,role:agent.role,division:agent.division,avatarIndex:agent.avatarIndex,instructions:agent.instructions||'',skills:agent.skills||[]})!==JSON.stringify(action.agent);
+      if(!changed)return;
+      Object.assign(agent,action.agent,{color:DIVISIONS.find(d=>d.id===action.agent.division)!.color});
+      for(const task of state.tasks.filter(t=>t.agentId===agent.id)){task.division=agent.division;if(agent.custom){const updated=taskForAgent(agent,task.campaignId);if(!task.title.startsWith('Tugas manager:')){task.title=updated.title;task.instructions=updated.instructions;}}if(artifactForTask(state,task.id))invalidate(state,task.id);}
+      addMessage(state,{channel:'general',senderId:'manager',content:`Profil dan skill ${agent.name} diperbarui. Hasil terkait perlu ditinjau ulang.`});
+    });break;
+
     case 'createCampaign': mutate(state => {
       if (state.campaigns.length >= 500) throw new OfficeError('Batas 500 kampanye tercapai.', 409);
       addCampaign(state, action.brief);
@@ -139,7 +163,7 @@ export async function performAction(value: unknown): Promise<OfficeResponse> {
       if (action.assignTo) {
         if (!action.campaignId) throw new OfficeError('Pilih kampanye sebelum menugaskan agen.');
         assertUnlocked(action.campaignId);
-        const agent = AGENTS.find(a => a.id === action.assignTo && a.id !== 'manager');
+        const agent = state.agents.find(a => a.id === action.assignTo && a.id !== 'manager');
         if (!agent) throw new OfficeError('Agen AI tidak ditemukan.', 404);
         if (state.tasks.filter(t => t.campaignId === action.campaignId).length >= 100) throw new OfficeError('Batas 100 tugas per kampanye tercapai.', 409);
         assigned = { id: uid('task'), campaignId: action.campaignId, title: `Tugas manager: ${action.content.slice(0, 100)}`, agentId: agent.id, division: agent.division, instructions: action.content, status: 'pending', dependencies: [] };

@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import {createServer} from 'node:http';
+import type {AddressInfo} from 'node:net';
 import type { OfficeResponse, OfficeState } from '../../src/lib/office/types';
 
 async function readOffice(request: APIRequestContext): Promise<OfficeState> {
@@ -123,4 +125,121 @@ test('the office and navigation remain usable on a narrow screen', async ({ page
   await expect(page.getByTestId('brief-name')).toBeVisible();
   await page.getByRole('button', { name: 'Tutup brief', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('backend settings switch endpoint and model without exposing credentials', async ({ page, request }) => {
+  await page.goto('/');
+  await page.getByTestId('tab-backend').click();
+  await page.getByRole('combobox', { name: 'Provider API' }).selectOption('Kustom');
+  await page.getByTestId('backend-url').fill('https://provider.example.com/v1');
+  await page.getByTestId('backend-model').fill('marketing-test-model');
+  await page.getByTestId('backend-save').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Konfigurasi backend tersimpan' })).toBeVisible();
+  const response = await request.get('/api/office');
+  const office = await response.json() as OfficeResponse;
+  expect(office.config.aiBaseUrl).toBe('https://provider.example.com/v1');
+  expect(office.config.aiModel).toBe('marketing-test-model');
+  expect(office.config.aiKeySource).toBe('none');
+  expect(office.config.aiConfigured).toBe(false);
+  expect(office.config).not.toHaveProperty('apiKey');
+  await expect(page.getByTestId('backend-key')).toHaveValue('');
+  await expect(page.getByTestId('backend-test')).toBeDisabled();
+  await page.reload();
+  await page.getByTestId('tab-backend').click();
+  await expect(page.getByTestId('backend-url')).toHaveValue('https://provider.example.com/v1');
+  await expect(page.getByTestId('backend-model')).toHaveValue('marketing-test-model');
+  await page.screenshot({ path: '/tmp/kadaka-backend-api.png', fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+  await expect(page.getByTestId('backend-save')).toBeVisible();
+});
+
+test('a custom agent uses editable skills in campaign work and manager chat', async ({ page, request }) => {
+  test.setTimeout(120_000); // This complete scenario opens the software-rendered 3D scene and profile.
+  const campaign = await createCampaign(page, request, 'custom agent');
+  const name = `Sora ${Date.now()}`;
+  await page.getByTestId('tab-backend').click();
+  await page.getByTestId('backend-tab-agents').click();
+  await page.getByTestId('agent-name').fill(name);
+  await page.getByTestId('agent-role').fill('SEO Specialist');
+  await page.getByTestId('agent-instructions').fill('Laporkan asumsi riset kepada Marketing Manager.');
+  await page.getByRole('combobox', { name: 'Tambahkan contoh skill' }).selectOption('SEO Content Strategy');
+  await page.getByTestId('agent-save').click();
+  await expect.poll(async () => (await readOffice(request)).agents.some(a => a.name === name)).toBe(true);
+  let state = await readOffice(request);
+  const agent = state.agents.find(item => item.name === name)!;
+  expect(agent).toBeDefined();
+  expect(agent.custom).toBe(true);
+  expect(agent.skills?.[0].name).toBe('SEO Content Strategy');
+  expect(state.tasks.filter(task => task.campaignId === campaign.id)).toHaveLength(9);
+  const row = page.locator(`[data-testid="managed-agent"][data-agent-id="${agent.id}"]`);
+  await expect(row).toBeVisible();
+  await row.getByTestId('agent-edit').click();
+  await page.getByTestId('skill-name-0').fill('SEO Instagram');
+  await page.getByTestId('skill-instructions-0').fill('Buat rekomendasi keyword dan caption Instagram tanpa mengarang volume pencarian.');
+  await page.getByTestId('agent-save').click();
+  await expect(row.getByText('SEO Instagram', { exact: true })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: '/tmp/kadaka-backend-agents.png', fullPage: true });
+
+  await page.getByTestId('run-campaign').click();
+  await expect.poll(async () => (await readOffice(request)).artifacts.filter(a => a.campaignId === campaign.id).length).toBe(9);
+  state = await readOffice(request);
+  const task = state.tasks.find(t => t.campaignId === campaign.id && t.agentId === agent.id)!;
+  const artifact = state.artifacts.find(a => a.taskId === task.id)!;
+  expect(artifact.content).toContain('SEO Instagram');
+  expect(state.messages.some(m => m.senderId === agent.id && m.taskId === task.id)).toBe(true);
+
+  await page.getByTestId('tab-office').click();
+  const sceneAgent = page.getByTestId('office-scene').getByRole('button', { name: `${name}, SEO Specialist, Review`, exact: true });
+  await expect(sceneAgent).toBeVisible({ timeout: 30_000 });
+  await sceneAgent.click();
+  await expect(page.getByRole('dialog').getByText('SEO Instagram', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Tutup profil', exact: true }).click();
+  const command = 'Sora, buat tiga alternatif caption berdasarkan keyword campaign.';
+  await page.getByTestId('chat-assignee').selectOption(agent.id);
+  await page.getByTestId('chat-input').fill(command);
+  await page.getByTestId('chat-send').click();
+  await expect(page.getByTestId('chat-input')).toHaveValue('');
+  state = await readOffice(request);
+  expect(state.tasks.some(t => t.agentId === agent.id && t.instructions.includes(command))).toBe(true);
+
+  await page.reload();
+  await page.getByTestId('tab-backend').click();
+  await page.getByTestId('backend-tab-agents').click();
+  await expect(row.getByText('SEO Instagram', { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+});
+
+test('Ollama settings use a local OpenAI-compatible server without an API key', async ({page,request})=>{
+  const calls:{path:string|undefined;authorization:string|undefined;model:string}[]=[];
+  const server=createServer(async (req,res)=>{
+    const chunks=[];for await(const chunk of req)chunks.push(chunk);
+    const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    calls.push({path:req.url,authorization:req.headers.authorization,model:body.model});
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({choices:[{message:{content:'# Hasil server lokal\nOllama-compatible transport verified.'}}]}));
+  });
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    await page.goto('/');await page.getByTestId('tab-backend').click();
+    await page.getByRole('combobox',{name:'Provider API'}).selectOption('Ollama (lokal)');
+    await expect(page.getByTestId('backend-url')).toHaveValue('http://127.0.0.1:11434/v1');
+    await expect(page.getByTestId('backend-model')).toHaveValue('Gwen3.8:27b');
+    await page.getByTestId('backend-url').fill(`http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`);
+    await page.getByTestId('backend-save').click();
+    await expect(page.getByTestId('backend-test')).toBeEnabled();
+    await page.getByTestId('backend-test').click();
+    await expect(page.getByRole('status').filter({hasText:'Koneksi berhasil'})).toBeVisible();
+    const state=await readOffice(request);const task=state.tasks.find(t=>t.campaignId==='campaign-kadaka'&&t.agentId==='atlas')!;
+    const response=await request.post('/api/office/action',{data:{type:'runTask',taskId:task.id,mode:'live'}});
+    expect(response.ok()).toBe(true);const result=await response.json() as OfficeResponse;
+    expect(result.config).toMatchObject({aiConfigured:true,aiLocal:true,aiKeySource:'none',imageConfigured:false});
+    expect(result.state.artifacts.find(a=>a.taskId===task.id)).toMatchObject({mode:'live',content:'# Hasil server lokal\nOllama-compatible transport verified.'});
+    expect(calls).toHaveLength(2);expect(calls.every(c=>c.path==='/v1/chat/completions'&&c.model==='Gwen3.8:27b'&&c.authorization===undefined)).toBe(true);
+    await page.reload();await page.getByTestId('tab-backend').click();
+    await expect(page.getByTestId('backend-model')).toHaveValue('Gwen3.8:27b');
+  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
