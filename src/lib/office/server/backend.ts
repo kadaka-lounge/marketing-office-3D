@@ -9,7 +9,7 @@ import {normalizeAIBaseUrl,normalizeImageBaseUrl,isLocalEndpoint,normalizeComfyB
 
 const OPENAI='https://api.openai.com/v1';
 interface StoredProfile {model?:string;enabled:boolean;secret?:string;disableEnvironmentKey?:boolean;}
-interface StoredComfy {source?:'custom'|'unsloth';workflowSecret?:string;promptNodeId:string;promptInput:string;outputNodeId:string;}
+interface StoredComfy {source?:'custom'|'unsloth'|'wan-gguf';workflowSecret?:string;promptNodeId:string;promptInput:string;outputNodeId:string;}
 interface StoredImage extends StoredProfile {comfy?:StoredComfy;baseUrl?:string;aspectRatio:ImageAspectRatio;}
 interface StoredBackend {videoProvider?:'huggingface'|'comfyui';videoComfy?:StoredImage;video?:StoredProfile&{aspectRatio:VideoAspectRatio};images?:Partial<Record<ImageProviderId,StoredImage>>;imageProvider?:ImageProviderId;profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;tiktok?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
 export function environmentBaseUrl(){return normalizeAIBaseUrl(process.env.MARKETING_AI_BASE_URL||OPENAI);}

@@ -261,3 +261,26 @@ kantor mengisi prompt teks, belum mengunggah gambar awal otomatis.
 Mengganti sumber mengosongkan workflow sebelumnya; unggah workflow baru yang cocok
 agar generasi siap. Memilih label atau sumber tidak memuat bobot di GPU. Integrasi
 API diuji dengan server tiruan; kedua varian model belum dijalankan di laptop.
+
+### Video Wan2.2-TI2V-5B-GGUF lokal
+
+Pada **Backend & API → Model Video**, pilih **ComfyUI**, kemudian **Sumber model
+lokal → Lokal · Wan2.2-TI2V-5B-GGUF**. Label model otomatis terisi
+`Wan2.2-TI2V-5B-GGUF`, dan endpoint default tetap `http://127.0.0.1:8188`.
+Pilihan sumber/model tersimpan di backend. Pergantian sumber membutuhkan workflow
+API baru dan tidak memakai workflow LTX/FP8 sebelumnya.
+
+Unduh template Wan 2.2 TI2V 5B dari pengaturan. Pasang versi
+[ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) yang mendukung varian Wan
+Anda, ganti UNETLoader dengan UnetLoaderGGUF dan pilih file GGUF lokal. Pilih
+encoder UMT5 dan VAE Wan 2.2 yang sesuai model card file Anda. Template resmi
+menggunakan FP16; nama preset kantor tidak mengganti loader atau file otomatis.
+Uji di ComfyUI, pilih SaveVideo MP4, lalu ekspor workflow API dan unggah ke kantor.
+Binding template: prompt positif `6` / `text`, output `58`. Untuk teks ke video,
+lepaskan start_image dan hapus LoadImage sebelum ekspor; untuk gambar ke video,
+siapkan gambar awal dalam workflow. Kantor saat ini mengisi prompt teks saja.
+
+Jalankan kantor dan ComfyUI pada laptop yang sama. Loopback dapat digunakan tanpa
+API key. Aplikasi mengecek node/berkas workflow sebelum mengirim job, menunggu
+hasil, lalu menyimpan MP4 untuk review manager. Kompatibilitas GGUF, VRAM, dan
+hasil model harus diuji pada laptop; pengujian integrasi memakai API tiruan.

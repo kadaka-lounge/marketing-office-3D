@@ -61,3 +61,13 @@ it('persists Unsloth sources and prevents a previous LTX workflow from being reu
  vi.stubGlobal('fetch',mock());expect((await requestConfiguredImage('Unsloth image brief')).subarray(0,8)).toEqual(Buffer.from([137,80,78,71,13,10,26,10]));
  await performAction({type:'saveImageProvider',settings:{...image,comfy:{...comfy,source:'custom',workflow:''}}});expect(getOffice().config.imageConfigured).toBe(false);
 });
+
+it('validates local Wan GGUF loader availability and preserves its selected weights when binding a video brief',async()=>{
+ const ggufGraph={...graph,'1':{class_type:'UnetLoaderGGUF',inputs:{unet_name:'wan2.2-ti2v-5b-Q4_K_M.gguf'}}};
+ const settings={...video,model:'Wan2.2-TI2V-5B-GGUF',comfy:{...comfy,source:'wan-gguf' as const,workflow:JSON.stringify(ggufGraph)}};
+ await expect(performAction({type:'saveImageProvider',settings:{...image,comfy:settings.comfy}})).rejects.toThrow('Wan GGUF hanya untuk video');
+ await performAction({type:'saveVideoProvider',settings});expect(getOffice().config.video).toMatchObject({model:settings.model,local:true,configured:true,comfy:{source:'wan-gguf'}});
+ const fetcher=mock({kind:'video'});vi.stubGlobal('fetch',fetcher);await expect(requestVideo('Local GGUF brief')).rejects.toThrow('UnetLoaderGGUF belum terpasang');expect(fetcher.mock.calls.some(([url])=>url.endsWith('/prompt'))).toBe(false);
+ const native=mock({kind:'video'});const withLoader=vi.fn(async(url:string,init:RequestInit)=>url.endsWith('/object_info')?Response.json({...objects,UnetLoaderGGUF:{input:{required:{unet_name:[['wan2.2-ti2v-5b-Q4_K_M.gguf']]}},output_node:false}}):Reflect.apply(native,undefined,[url,init]));vi.stubGlobal('fetch',withLoader);
+ expect(await requestVideo('Local GGUF brief')).toEqual(stripVideoMetadata(mp4));const submission=withLoader.mock.calls.find(([url])=>url.endsWith('/prompt'))!;const submitted=JSON.parse(submission[1].body as string).prompt;expect(submitted['1']).toEqual(ggufGraph['1']);expect(submitted['6:2'].inputs.prompt).toBe('Local GGUF brief');
+});
