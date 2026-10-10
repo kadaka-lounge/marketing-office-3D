@@ -9,7 +9,7 @@ import {normalizeAIBaseUrl,normalizeImageBaseUrl,isLocalEndpoint,normalizeComfyB
 
 const OPENAI='https://api.openai.com/v1';
 interface StoredProfile {model?:string;enabled:boolean;secret?:string;disableEnvironmentKey?:boolean;}
-interface StoredComfy {workflowSecret?:string;promptNodeId:string;promptInput:string;outputNodeId:string;}
+interface StoredComfy {source?:'custom'|'unsloth';workflowSecret?:string;promptNodeId:string;promptInput:string;outputNodeId:string;}
 interface StoredImage extends StoredProfile {comfy?:StoredComfy;baseUrl?:string;aspectRatio:ImageAspectRatio;}
 interface StoredBackend {videoProvider?:'huggingface'|'comfyui';videoComfy?:StoredImage;video?:StoredProfile&{aspectRatio:VideoAspectRatio};images?:Partial<Record<ImageProviderId,StoredImage>>;imageProvider?:ImageProviderId;profiles?:Partial<Record<ProviderId,StoredProfile>>;meta?:StoredProfile;tiktok?:StoredProfile;baseUrl:string;model:string;secret?:string;disableEnvironmentKey?:boolean;}
 export function environmentBaseUrl(){return normalizeAIBaseUrl(process.env.MARKETING_AI_BASE_URL||OPENAI);}
@@ -99,16 +99,17 @@ export function saveImageProvider(input:ImageProviderDraft){
  next.imageProvider=input.provider;next.images={...next.images,[input.provider]:{...updatedProfile(scoped,{...input,enabled:true}),aspectRatio:input.aspectRatio,...(input.provider==='comfyui'?{comfy:updatedComfy(baseUrl!==imageConnection(input.provider).baseUrl?undefined:previous?.comfy,input.comfy)}:{}),...(baseUrl?{baseUrl}:{})}};writeStored(next);
 }
 
-function comfyConnection(profile?:StoredComfy){return {workflow:profile?.workflowSecret?decrypt(profile.workflowSecret):undefined,promptNodeId:profile?.promptNodeId||'',promptInput:profile?.promptInput||'text',outputNodeId:profile?.outputNodeId||''};}
+function comfyConnection(profile?:StoredComfy){return {source:profile?.source||'custom' as const,workflow:profile?.workflowSecret?decrypt(profile.workflowSecret):undefined,promptNodeId:profile?.promptNodeId||'',promptInput:profile?.promptInput||'text',outputNodeId:profile?.outputNodeId||''};}
 function updatedComfy(previous:StoredComfy|undefined,input?:ComfyDraft):StoredComfy|undefined{
  if(!input)return previous;
- const next:StoredComfy={...previous,promptNodeId:input.promptNodeId,promptInput:input.promptInput,outputNodeId:input.outputNodeId};
+ const source=input.source||previous?.source||'custom';
+ const next:StoredComfy={...(source===(previous?.source||'custom')?previous:{}),source,promptNodeId:input.promptNodeId,promptInput:input.promptInput,outputNodeId:input.outputNodeId};
  if(input.clearWorkflow)delete next.workflowSecret;
  else if(input.workflow?.trim())next.workflowSecret=encrypt(input.workflow);
  if(next.workflowSecret){try{validateComfyBindings(parseComfyWorkflow(decrypt(next.workflowSecret)),next.promptNodeId,next.promptInput,next.outputNodeId);}catch(error){throw new OfficeError(error instanceof Error?error.message:'Workflow tidak valid.',400);}}
  return next;
 }
-export function publicComfy(c:ReturnType<typeof comfyConnection>){return {workflowConfigured:Boolean(c.workflow),promptNodeId:c.promptNodeId,promptInput:c.promptInput,outputNodeId:c.outputNodeId};}
+export function publicComfy(c:ReturnType<typeof comfyConnection>){return {source:c.source,workflowConfigured:Boolean(c.workflow),promptNodeId:c.promptNodeId,promptInput:c.promptInput,outputNodeId:c.outputNodeId};}
 export function videoConnection(provider:'huggingface'|'comfyui'=readStored()?.videoProvider||'huggingface'){
  if(provider==='comfyui'){const profile=readStored()?.videoComfy;const baseUrl=normalizeComfyBaseUrl(profile?.baseUrl||process.env.COMFY_VIDEO_BASE_URL||'http://127.0.0.1:8188');let valid=false;try{const u=new URL(baseUrl);valid=(u.protocol==='https:'||isLocalEndpoint(baseUrl))&&!u.username&&!u.password&&!u.search&&!u.hash;}catch{}if(!valid)throw new OfficeError('Endpoint ComfyUI video tidak valid.',409);return {provider,baseUrl,local:isLocalEndpoint(baseUrl),comfy:comfyConnection(profile?.comfy),model:profile?.model||process.env.COMFY_VIDEO_MODEL||'ltx25_uncensored_v1.1-fp8',aspectRatio:(profile?.aspectRatio||'9:16') as VideoAspectRatio,...profileKey(profile,'COMFY_VIDEO_KEY')};}
  const profile=readStored()?.video;return {provider,baseUrl:undefined,local:false,comfy:comfyConnection(),model:profile?.model||process.env.HF_VIDEO_MODEL||'Wan-AI/Wan2.2-T2V-A14B',aspectRatio:profile?.aspectRatio||'16:9' as VideoAspectRatio,...profileKey(profile,'HF_VIDEO_TOKEN')};

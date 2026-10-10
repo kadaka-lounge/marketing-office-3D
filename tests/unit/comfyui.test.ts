@@ -48,3 +48,16 @@ it('checks video nodes without generating a job, clears workflow, and sanitizes 
 it('strips MP4 user metadata without changing sample offsets or revealing embedded workflow credentials',()=>{
  const secret=Buffer.from('private-embedded-workflow-token');const box=Buffer.alloc(secret.length+8);box.writeUInt32BE(box.length);box.write('udta',4,'ascii');secret.copy(box,8);const input=Buffer.concat([mp4,box]);const clean=stripVideoMetadata(input);expect(clean.length).toBe(input.length);const mediaOffset=mp4.indexOf('mdat')-4;const mediaSize=mp4.readUInt32BE(mediaOffset);expect(clean.subarray(mediaOffset,mediaOffset+mediaSize)).toEqual(mp4.subarray(mediaOffset,mediaOffset+mediaSize));expect(validateMP4(clean)).toMatchObject({width:32,height:32,durationSeconds:0.5});expect(clean.toString()).not.toContain(secret.toString());expect(clean.toString('ascii',mp4.length+4,mp4.length+8)).toBe('free');
 });
+
+it('persists Unsloth sources and prevents a previous LTX workflow from being reused after switching source',async()=>{
+ await performAction({type:'saveVideoProvider',settings:video});
+ await performAction({type:'saveVideoProvider',settings:{...video,model:'unsloth/Wan2.2-TI2V-5B-FP8',comfy:{...comfy,source:'unsloth',workflow:''}}});
+ expect(getOffice().config.video).toMatchObject({model:'unsloth/Wan2.2-TI2V-5B-FP8',configured:false,comfy:{source:'unsloth',workflowConfigured:false}});
+ await expect(requestVideo('brief')).rejects.toThrow('workflow API');
+ await performAction({type:'saveVideoProvider',settings:{...video,model:'unsloth/Wan2.2-TI2V-5B-FP8',comfy:{...comfy,source:'unsloth'}}});
+ await performAction({type:'saveImageProvider',settings:{...image,model:'unsloth/Qwen-Image-2.1-GGUF',comfy:{...comfy,source:'unsloth'}}});
+ expect(getOffice().config.imageProviders.find(p=>p.provider==='comfyui')).toMatchObject({model:'unsloth/Qwen-Image-2.1-GGUF',configured:true,comfy:{source:'unsloth'}});
+ vi.stubGlobal('fetch',mock({kind:'video'}));expect(await requestVideo('Unsloth video brief')).toEqual(stripVideoMetadata(mp4));
+ vi.stubGlobal('fetch',mock());expect((await requestConfiguredImage('Unsloth image brief')).subarray(0,8)).toEqual(Buffer.from([137,80,78,71,13,10,26,10]));
+ await performAction({type:'saveImageProvider',settings:{...image,comfy:{...comfy,source:'custom',workflow:''}}});expect(getOffice().config.imageConfigured).toBe(false);
+});

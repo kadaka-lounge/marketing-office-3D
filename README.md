@@ -238,3 +238,26 @@ Workflow disimpan terenkripsi; respons konfigurasi hanya berisi status dan ID bi
 Generasi mengirim `/prompt` dengan graph salinan dan brief, mempoll `/history/{prompt_id}`, lalu mengambil filename dari node output terpilih melalui `/view` pada server yang sama. Tidak ada fetch URL aset arbitrer. Maksimal waktu tunggu 12 menit; job mungkin tetap berjalan setelah koneksi putus, jadi periksa ComfyUI sebelum mengulangi. PNG/JPEG/WebP dan MP4 tetap divalidasi sebelum disimpan. Metadata user MP4 (udta/meta/uuid) dari ComfyUI dibersihkan tanpa mengubah offset media agar workflow/key yang mungkin ditanamkan oleh node video tidak terbawa ke ekspor. Aset baru memerlukan review manager, hasil gagal mempertahankan aset lama, dan ekspor/publikasi mengikuti kontrol yang sudah ada. Tes otomatis menggunakan server ComfyUI tiruan dan fixture media; model komunitas belum dijalankan pada laptop pengguna.
 
 Sumber model resmi yang dipilih: [Qwen/Qwen-Image-2.1](https://huggingface.co/Qwen/Qwen-Image-2.1) dan [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5). Kedua label resmi tersedia sebagai preset tambahan. Nama `Qwen-Image-2.1-Uncensored-GGUF` dan `ltx25_uncensored_v1.1-fp8` tetap tersedia sebagai label varian lokal; tautan model resmi belum menentukan file quantization/varian uncensored atau loader-nya. Gunakan model card file yang benar-benar Anda unduh untuk memilih loader dan companion weights.
+
+### Model Unsloth: Qwen Image GGUF dan Wan TI2V FP8
+
+Pilih **ComfyUI** pada tab **Model Gambar** atau **Model Video**, kemudian ubah
+**Sumber model lokal** menjadi **Unsloth**. Preset gambar memakai label
+`unsloth/Qwen-Image-2.1-GGUF`; preset video memakai
+`unsloth/Wan2.2-TI2V-5B-FP8`. Pilihan sumber tersimpan di backend dan muncul kembali
+setelah reload. Endpoint tetap native ComfyUI (`http://127.0.0.1:8188`), bukan API
+hosted Unsloth. Token Hugging Face tidak diperlukan untuk generasi lokal; unduhan
+bobot dilakukan sendiri mengikuti akses dan lisensi model.
+
+Unduh template awal dari pengaturan, sesuaikan file model, loader, encoder dan VAE,
+uji dalam ComfyUI, lalu unggah ekspor API. Qwen GGUF memerlukan loader GGUF yang
+mendukung arsitektur Qwen Image 2.1. Template Wan 2.2 TI2V 5B resmi memakai FP16;
+pilih bobot FP8 Unsloth yang benar pada loader Anda, serta UMT5 dan Wan 2.2 VAE.
+Gunakan node positif `6`, input `text`, dan output SaveVideo `58` dengan format MP4.
+Untuk video dari brief teks, lepaskan input `start_image` dan hapus node LoadImage
+sebelum ekspor API. Untuk image-to-video, siapkan gambar awal di workflow ComfyUI;
+kantor mengisi prompt teks, belum mengunggah gambar awal otomatis.
+
+Mengganti sumber mengosongkan workflow sebelumnya; unggah workflow baru yang cocok
+agar generasi siap. Memilih label atau sumber tidak memuat bobot di GPU. Integrasi
+API diuji dengan server tiruan; kedua varian model belum dijalankan di laptop.

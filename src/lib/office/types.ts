@@ -4,8 +4,9 @@ export interface AgentSkill { name: string; instructions: string; }
 export interface AgentDraft { name: string; role: string; division: Exclude<DivisionId, 'manager'>; avatarIndex: number; instructions: string; skills: AgentSkill[]; }
 export type ImageProviderId='openai'|'imagen'|'huggingface'|'qwen'|'comfyui';
 export type ImageAspectRatio='1:1'|'4:5'|'9:16'|'16:9';
-export interface ComfyDraft {workflow?:string;promptNodeId:string;promptInput:string;outputNodeId:string;clearWorkflow?:boolean;}
-export interface ComfyStatus {workflowConfigured:boolean;promptNodeId:string;promptInput:string;outputNodeId:string;}
+export type ComfyModelSource='custom'|'unsloth';
+export interface ComfyDraft {source?:ComfyModelSource;workflow?:string;promptNodeId:string;promptInput:string;outputNodeId:string;clearWorkflow?:boolean;}
+export interface ComfyStatus {source:ComfyModelSource;workflowConfigured:boolean;promptNodeId:string;promptInput:string;outputNodeId:string;}
 export interface ImageProviderDraft {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;baseUrl?:string;comfy?:ComfyDraft;apiKey?:string;clearKey?:boolean;}
 export interface ImageProviderStatus {provider:ImageProviderId;model:string;aspectRatio:ImageAspectRatio;baseUrl?:string;local?:boolean;comfy?:ComfyStatus;configured:boolean;keySource:'stored'|'environment'|'none'|'shared';}
 export type VideoAspectRatio='16:9'|'9:16'|'1:1';
