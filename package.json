@@ -41,7 +41,7 @@
     "eslint": "9.39.1",
     "eslint-config-next": "16.4.0",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   },
   "overrides": {
     "@next/eslint-plugin-next": {
